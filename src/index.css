@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   ДИЗАЙН-ТОКЕНЫ — единственный источник истины для темы.
+   Все цвета — HSL-каналы, чтобы Tailwind мог добавлять alpha.
+   ============================================================ */
+@layer base {
+  :root {
+    --bg: 240 14% 6%;
+    --surface: 240 12% 10%;
+    --fg: 0 0% 98%;
+    --fg-muted: 240 6% 72%;        /* >= 4.5:1 на тёмном фоне — WCAG AA */
+    --accent: 262 83% 64%;
+    --accent-2: 190 95% 55%;
+    --success: 152 60% 50%;
+    --danger: 0 80% 63%;
+    --border: 0 0% 100%;            /* используется только на низкой alpha */
+    --glass-bg: 0 0% 100%;
+    --radius: 1rem;
+  }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    min-height: 100dvh;
+    /* мягкое свечение фона — даёт backdrop-blur стеклянных карточек что размывать */
+    background-image:
+      radial-gradient(55rem 55rem at 10% -8%, hsl(var(--accent) / 0.18), transparent 60%),
+      radial-gradient(48rem 48rem at 96% 8%, hsl(var(--accent-2) / 0.12), transparent 55%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+
+  /* Видимый фокус на ВСЕЙ интерактивщине — требование Tier-1 / WCAG 2.1 AA */
+  :focus-visible {
+    outline: 2px solid hsl(var(--accent));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ============================================================
+   КОМПОНЕНТНЫЕ КЛАССЫ
+   ============================================================ */
+@layer components {
+  /* ЕДИНЫЙ glassmorphism-токен. Любая карточка в проекте — только через .glass
+     (или компонент <GlassCard/>). Сырой непрозрачный div / shadcn <Card>
+     использовать запрещено — это ломает консистентность темы. */
+  .glass {
+    background: hsl(var(--glass-bg) / 0.045);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(var(--border) / 0.09);
+    box-shadow:
+      0 8px 32px hsl(240 30% 2% / 0.45),
+      inset 0 1px 0 hsl(var(--border) / 0.06); /* внутренний блик = "толщина" стекла */
+    border-radius: var(--radius);
+  }
+
+  .glass-hover {
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .glass-hover:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--accent) / 0.4);
+    box-shadow:
+      0 14px 40px hsl(240 30% 2% / 0.55),
+      inset 0 1px 0 hsl(var(--border) / 0.08);
+  }
+
+  /* Фолбэк для движков без backdrop-filter (старый Firefox и т.п.) */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass { background: hsl(var(--surface) / 0.96); }
+  }
+
+  /* Заголовок: переживает любую длину строки в любом языке (RU/AR/DE) */
+  .h-display {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-weight: 700;
+    line-height: 1.07;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    hyphens: auto;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ============================================================
+   УТИЛИТЫ
+   ============================================================ */
+@layer utilities {
+  /* Fluid-кегль — никогда не выходит за вьюпорт, без media-queries */
+  .text-fluid-hero { font-size: clamp(2rem, 1.1rem + 4.4vw, 4.5rem); }
+  .text-fluid-h2   { font-size: clamp(1.5rem, 1.1rem + 1.9vw, 2.5rem); }
+
+  /* Денежные значения не должны "прыгать" при смене цифр */
+  .nums { font-variant-numeric: tabular-nums; }
+}
+
+/* ============================================================
+   RTL (арабский)
+   Layout зеркалится автоматически логическими утилитами Tailwind
+   (ms-/me-/ps-/pe-/start-/end-/text-start/text-end).
+   Здесь — только то, что Tailwind не покрывает.
+   ============================================================ */
+[dir='rtl'] .flip-rtl { transform: scaleX(-1); }

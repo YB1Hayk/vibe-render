@@ -1,0 +1,198 @@
+{
+  "nav": {
+    "home": "Home",
+    "designers": "For Designers",
+    "operators": "For Node Operators",
+    "profile": "Profile"
+  },
+  "wallet": {
+    "connect": "Connect Wallet",
+    "connecting": "Connecting…",
+    "pending": "Confirm in wallet…",
+    "wrongNetwork": "Switch Network"
+  },
+  "hero": {
+    "badge": "Live on {{chains}}",
+    "titleLine1": "Decentralized 3D Rendering.",
+    "titleLine2": "Global. On-Demand.",
+    "subtitle": "Render 5x cheaper or monetize your gaming GPU via a secure Web3 escrow network.",
+    "ctaDesigner": "I am a Designer",
+    "ctaOperator": "I am a GPU Owner"
+  },
+  "stats": {
+    "activeNodes": "Global Active Nodes",
+    "networkPower": "Network Power",
+    "escrowLocked": "Secure Escrow Locked"
+  },
+  "howItWorks": {
+    "title": "How It Works",
+    "subtitle": "Two simple flows. One global render network.",
+    "designers": {
+      "heading": "For Designers",
+      "steps": [
+        { "title": "Upload Project", "desc": "Drop your .blend, .max or .c4d file into the secure encrypted vault." },
+        { "title": "Fund Escrow", "desc": "Lock a stablecoin on {{chains}}. Funds released only on delivery." },
+        { "title": "Download Render", "desc": "Receive verified frames in hours, not days — 5x cheaper than data-centers." }
+      ]
+    },
+    "operators": {
+      "heading": "For Node Operators",
+      "steps": [
+        { "title": "Claim Available Job", "desc": "Pick render tasks matched to your GPU from the global board." },
+        { "title": "Render Manually", "desc": "Use your idle gaming rig. We supply the files, you supply the compute." },
+        { "title": "Earn Stablecoin", "desc": "Instant on-chain payouts once frames pass verification." }
+      ]
+    }
+  },
+  "network": {
+    "title": "Network Presence",
+    "subtitle": "2,410+ verified GPU nodes across 64 countries.",
+    "nodes": ["New York Node", "London Node", "Moscow Node", "Dubai Node", "Tokyo Node"]
+  },
+  "features": {
+    "aiChat": { "title": "AI Cross-Border Chat", "desc": "Talk in any language. Our AI translates in real time between designers and node operators worldwide." },
+    "escrow": { "title": "On-Chain Escrow", "desc": "Funds locked in smart contracts. Released only when render frames are verified and delivered." },
+    "cheaper": { "title": "5x Cheaper Renders", "desc": "Tap into idle gaming GPUs globally. No data-centers, no markups, no waitlists." }
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "items": [
+      { "q": "How is my project file security handled?", "a": "Files are encrypted client-side before upload and stored in an access-controlled vault. Node operators receive only the data required to render your job." },
+      { "q": "Which network is used for payments?", "a": "Escrow runs on Base and Arbitrum using USDC and USDT stablecoins. You choose the network when funding a project." },
+      { "q": "What if the render quality is poor?", "a": "Frames pass automated verification before escrow is released. If output fails the checks, funds stay locked and the job is re-queued." }
+    ]
+  },
+  "auth": {
+    "signIn": "Sign in with Google",
+    "signOut": "Sign Out",
+    "loading": "Loading…"
+  },
+  "roleSelect": {
+    "title": "Who are you on the platform?",
+    "subtitle": "Choose your role — it defines your interface. You can change it later in Profile.",
+    "designer": "Designer",
+    "designerDesc": "I create 3D projects and need rendering",
+    "renderer": "Renderer",
+    "rendererDesc": "I have a GPU and want to earn"
+  },
+  "jobs": {
+    "back": "Back",
+    "frames": "frames",
+    "notFound": "Job not found",
+    "noJobs": "No open jobs yet",
+    "claim": "Take Job",
+    "download": "Download Archive",
+    "uploadResult": "Drop rendered files here (.zip)",
+    "submitResult": "Upload Result",
+    "approve": "Approve & Release Escrow",
+    "downloadResult": "Download Result",
+    "completed": "Job completed ✓",
+    "chat": "Chat",
+    "chatEmpty": "No messages yet",
+    "sendMessage": "Write a message…",
+    "rendererActions": "Renderer Actions",
+    "designerActions": "Client Actions",
+    "currentStatus": "Current status",
+    "status": {
+      "open": "Open",
+      "claimed": "Claimed",
+      "rendering": "Rendering",
+      "review": "In Review",
+      "completed": "Completed"
+    }
+  },
+  "designers": {
+    "dashboard": "Client Dashboard",
+    "title": "Submit Your Render Project",
+    "myJobs": "My Jobs",
+    "dropzone": {
+      "prompt": "Drag & drop your .blend, .max or .zip archive here",
+      "limit": "Max file size 50MB",
+      "formats": ".blend · .max · .c4d · .zip",
+      "browse": "Browse files",
+      "errorFormat": "Unsupported file format",
+      "errorSize": "File exceeds the 50MB limit"
+    },
+    "settings": { "title": "Render Settings", "resolution": "Resolution", "frameRange": "Frame Range" },
+    "calculator": {
+      "title": "Escrow Price Calculator",
+      "costPerFrame": "Cost per Frame",
+      "frames": "Frames",
+      "networkFee": "Protocol fee",
+      "total": "Total Estimated Price"
+    },
+    "lockEscrow": "Lock Escrow & Deploy Project"
+  },
+  "operators": {
+    "role": "Node Operator",
+    "title": "Global Render Job Board",
+    "nodeId": "Node ID",
+    "balance": "Available Balance",
+    "earned24h": "{{amount}} last 24h",
+    "withdraw": "Withdraw to Web3 Wallet",
+    "table": {
+      "project": "Project",
+      "hardware": "Hardware",
+      "reward": "Reward",
+      "status": "Status",
+      "action": "Action"
+    },
+    "status": { "available": "Available", "claimed": "Claimed", "rendering": "Rendering", "review": "In Review", "completed": "Completed" },
+    "claim": "Claim Job",
+    "download": "Download Source",
+    "jobs": [
+      { "id": "VR-1001", "title": "Architectural Flythrough Dubai", "meta": "240 frames · Blender 4.2", "gpu": "RTX 4080+", "reward": 120 },
+      { "id": "VR-1002", "title": "Sci-Fi Character Animation", "meta": "90 frames · Cinema 4D", "gpu": "RTX 3070+", "reward": 45 },
+      { "id": "VR-1003", "title": "Product Showcase — Watch Brand", "meta": "180 frames · Octane", "gpu": "RTX 4070+", "reward": 78 },
+      { "id": "VR-1004", "title": "Tokyo Cyberpunk Cityscape", "meta": "600 frames · Unreal 5", "gpu": "RTX 4090", "reward": 320 },
+      { "id": "VR-1005", "title": "Medical Heart Visualization", "meta": "120 frames · Houdini", "gpu": "RTX 3080+", "reward": 62 }
+    ]
+  },
+  "profile": {
+    "account": "Account",
+    "title": "User Profile",
+    "role": "Platform Member",
+    "roleDesigner": "Designer",
+    "roleRenderer": "Renderer",
+    "linkWallet": "Link Wallet",
+    "wallet": "Web3 Wallet",
+    "network": "Base Mainnet",
+    "stats": {
+      "transacted": "Total Transacted",
+      "successRate": "Success Rate",
+      "activeContracts": "Active Contracts",
+      "live": "live"
+    },
+    "activity": { "title": "Monthly Activity", "subtitle": "Earnings vs Spendings (USDT)", "trend": "{{value}} MoM" },
+    "settings": {
+      "title": "Settings",
+      "username": "Username",
+      "email": "Notification Email",
+      "security": "Security Preference",
+      "twoFa": "Two-Factor Authentication",
+      "hardwareWallet": "Hardware Wallet Signing",
+      "emailAlerts": "Email Alerts Only",
+      "save": "Save Changes"
+    }
+  },
+  "footer": {
+    "tagline": "Decentralized manual compute network for high-end 3D graphics.",
+    "copyright": "© 2026 VibeRender. All rights reserved.",
+    "ecosystem": "Ecosystem",
+    "resources": "Resources",
+    "legal": "Legal",
+    "community": "Community",
+    "links": {
+      "baseDeployment": "Base Deployment",
+      "arbitrumBridge": "Arbitrum Bridge",
+      "smartContracts": "Smart Contracts",
+      "documentation": "Documentation",
+      "whitepaper": "Whitepaper",
+      "faq": "FAQ",
+      "brandAssets": "Brand Assets",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "nda": "NDA Agreement"
+    }
+  }
+}
