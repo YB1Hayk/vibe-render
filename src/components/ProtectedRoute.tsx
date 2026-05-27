@@ -29,13 +29,7 @@ export function ProtectedRoute({ children, requiredRole }: Props) {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  if (requiredRole && !profile?.role) {
-    return <Navigate to="/select-role" replace />;
-  }
-
-  if (requiredRole && profile.role !== requiredRole) {
-    return <Navigate to="/" replace />;
-  }
+  // Роль больше не обязательна для доступа к страницам
 
   return <>{children}</>;
 }

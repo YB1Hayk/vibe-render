@@ -18,13 +18,13 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Ссылки зависят от роли
-  const roleLinks =
-    profile?.role === 'designer'
-      ? [{ to: '/designers', key: 'nav.designers' }]
-      : profile?.role === 'renderer'
-        ? [{ to: '/operators', key: 'nav.operators' }]
-        : [];
+  // Показываем обе секции для залогиненных пользователей
+  const roleLinks = user
+    ? [
+        { to: '/designers', key: 'nav.designers' },
+        { to: '/operators', key: 'nav.operators' },
+      ]
+    : [];
 
   const NAV = [...NAV_BASE.slice(0, 1), ...roleLinks, NAV_BASE[1]];
 
