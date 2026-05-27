@@ -29,8 +29,9 @@ export function ProtectedRoute({ children, requiredRole }: Props) {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  if (requiredRole && profile?.role !== requiredRole) {
-    // Залогинен но не та роль — отправляем на главную
+  if (requiredRole && profile?.role && profile.role !== requiredRole) {
+    // Залогинен, роль установлена, но неправильная — отправляем на главную
+    // Роль null/undefined НЕ редиректим — RoleSelectModal откроется поверх и разберётся
     return <Navigate to="/" replace />;
   }
 
