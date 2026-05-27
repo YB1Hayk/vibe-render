@@ -4,45 +4,50 @@ import { supabase } from '../lib/supabase';
 
 /**
  * Страница-обработчик OAuth редиректа.
- * Supabase редиректит сюда после Google/Discord авторизации.
- * Мы явно вызываем getSession(), ждём сессию и отправляем пользователя дальше.
+ * После авторизации Supabase отправляет сюда с токеном в хэше URL.
+ * Мы ждём сессию и отправляем пользователя дальше.
  */
 export function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handle = async () => {
-      // Подождём пока Supabase обработает хэш/код из URL
-      const { data: { session }, error } = await supabase.auth.getSession();
+    let done = false;
 
-      if (error) {
-        console.error('Auth callback error:', error.message);
-        navigate('/login', { replace: true });
-        return;
-      }
-
-      if (session) {
-        // Успешная сессия — идём на главную, там AuthContext определит роль
-        navigate('/', { replace: true });
-      } else {
-        // Сессии нет — подождём onAuthStateChange
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-          subscription.unsubscribe();
-          if (s) {
-            navigate('/', { replace: true });
-          } else {
-            navigate('/login', { replace: true });
-          }
-        });
-        // Таймаут на случай если ничего не пришло
-        setTimeout(() => {
-          subscription.unsubscribe();
-          navigate('/login', { replace: true });
-        }, 5000);
-      }
+    const redirect = () => {
+      if (done) return;
+      done = true;
+      navigate('/', { replace: true });
     };
 
-    handle();
+    // Подписываемся на изменение сессии — это самый надёжный способ
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        subscription.unsubscribe();
+        redirect();
+      }
+    });
+
+    // Проверяем текущую сессию — может уже есть
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        subscription.unsubscribe();
+        redirect();
+      }
+    });
+
+    // Таймаут: если через 8 сек ничего — отправляем на логин
+    const timer = setTimeout(() => {
+      subscription.unsubscribe();
+      if (!done) {
+        done = true;
+        navigate('/login', { replace: true });
+      }
+    }, 8000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, [navigate]);
 
   return (

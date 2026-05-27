@@ -30,7 +30,9 @@ function RoleGuard() {
     if (loading) return;
     if (!user) return;
     if (profile?.role) return;
-    if (location.pathname === '/select-role') return;
+    // Не мешаем авторизационным страницам
+    const skipPaths = ['/select-role', '/auth/callback', '/login'];
+    if (skipPaths.some((p) => location.pathname.startsWith(p))) return;
     navigate('/select-role', { replace: true });
   }, [loading, user, profile?.role, location.pathname, navigate]);
 
