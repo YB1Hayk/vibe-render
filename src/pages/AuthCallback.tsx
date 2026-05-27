@@ -64,7 +64,7 @@ export function AuthCallback() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center flex-col gap-4">
       <div className="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      <p className="text-sm text-muted">Входим…</p>
+      <p className="text-sm text-muted">Авторизация…</p>
     </div>
   );
 }
