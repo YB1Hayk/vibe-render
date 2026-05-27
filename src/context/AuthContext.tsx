@@ -10,11 +10,16 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types/database';
 
+type OAuthProvider = 'google' | 'discord' | 'azure';
+
 interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithDiscord: () => Promise<void>;
+  signInWithMicrosoft: () => Promise<void>;
+  signInWith: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -69,12 +74,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWith = useCallback(async (provider: OAuthProvider) => {
     await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       options: { redirectTo: window.location.origin },
     });
   }, []);
+
+  const signInWithGoogle = useCallback(() => signInWith('google'), [signInWith]);
+  const signInWithDiscord = useCallback(() => signInWith('discord'), [signInWith]);
+  const signInWithMicrosoft = useCallback(() => signInWith('azure'), [signInWith]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -83,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInWithDiscord, signInWithMicrosoft, signInWith, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
