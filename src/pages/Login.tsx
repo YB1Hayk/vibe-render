@@ -40,6 +40,7 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [emailSending, setEmailSending] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [oauthError, setOauthError] = useState('');
 
   // Редирект если уже залогинен
   useEffect(() => {
@@ -90,13 +91,27 @@ export function Login() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => signInWith(p.id)}
+                onClick={async () => {
+                  setOauthError('');
+                  try {
+                    const { error } = await supabase.auth.signInWithOAuth({
+                      provider: p.id,
+                      options: { redirectTo: REDIRECT_URL },
+                    });
+                    if (error) setOauthError(`${p.label}: ${error.message}`);
+                  } catch (e: unknown) {
+                    setOauthError(e instanceof Error ? e.message : 'Ошибка подключения');
+                  }
+                }}
                 className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-medium text-fg transition-all hover:bg-white/10 hover:border-white/25"
               >
                 {p.icon}
                 Продолжить через {p.label}
               </button>
             ))}
+            {oauthError && (
+              <p className="rounded-lg bg-danger/10 border border-danger/20 px-3 py-2 text-xs text-danger">{oauthError}</p>
+            )}
 
             <div className="flex items-center gap-3 my-1">
               <div className="flex-1 h-px bg-border/15" />
