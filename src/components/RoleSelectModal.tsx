@@ -46,16 +46,17 @@ export function RoleSelectModal() {
       await Promise.race([save(), timeout]);
 
       // Мгновенно обновляем локальный стейт — не ждём ещё одного DB-запроса
+      // patchProfile работает даже если profile === null
       patchProfile({ role });
 
       // Редиректим на нужную страницу
+      setSaving(false);
       navigate(role === 'designer' ? '/designers' : '/operators', { replace: true });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Ошибка сохранения';
       setError(msg);
       setSaving(false);
     }
-    // Нет finally — если успех, компонент размонтируется после navigate
   };
 
   return (

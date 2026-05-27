@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const patchProfile = useCallback((updates: Partial<Profile>) => {
-    setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+    // Работает даже если profile === null (создаём минимальный объект)
+    setProfile((prev) => ({ ...(prev ?? ({} as Profile)), ...updates }));
   }, []);
 
   useEffect(() => {
