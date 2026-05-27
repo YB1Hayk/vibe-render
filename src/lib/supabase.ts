@@ -1,25 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  ?? 'https://cepttkuzuudzlssveiac.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
-// Логируем в консоль при старте чтобы видеть проблему
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[Supabase] Missing env vars:', {
-    VITE_SUPABASE_URL: supabaseUrl ? 'OK' : 'MISSING',
-    VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'OK' : 'MISSING',
-  });
-}
-
-export const supabase = createClient<Database>(
-  supabaseUrl ?? 'https://cepttkuzuudzlssveiac.supabase.co',
-  supabaseAnonKey ?? '',
-  {
-    auth: {
-      detectSessionInUrl: true,
-      persistSession: true,
-      autoRefreshToken: true,
-    },
+/**
+ * Supabase client.
+ * flowType: 'implicit' — токен передаётся напрямую в хэше URL (#access_token=...),
+ * не требует обмена кодом. Надёжнее для SPA с OAuth.
+ */
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: 'implicit',
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+    storageKey: 'vibe-render-auth',
   },
-);
+});

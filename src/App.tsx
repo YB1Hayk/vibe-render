@@ -11,6 +11,7 @@ import { RoleSelectModal } from './components/RoleSelectModal';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
+import { AuthCallback } from './pages/AuthCallback';
 import { Designers } from './pages/Designers';
 import { Operators } from './pages/Operators';
 import { Profile } from './pages/Profile';
@@ -35,6 +36,7 @@ function AppInner() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route
             path="/designers"
             element={

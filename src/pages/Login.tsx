@@ -4,7 +4,7 @@ import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
-const REDIRECT_URL = 'https://vibe-render.vercel.app';
+const REDIRECT_URL = 'https://vibe-render.vercel.app/auth/callback';
 
 const OAUTH_PROVIDERS = [
   {
