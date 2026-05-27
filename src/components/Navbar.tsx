@@ -102,7 +102,7 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="hidden sm:flex items-center gap-1.5 rounded-lg glass px-3 py-2 text-sm transition-colors hover:border-accent/40"
+                  className="flex items-center gap-1.5 rounded-lg glass px-3 py-2 text-sm transition-colors hover:border-accent/40"
                 >
                   <LogIn size={14} />
                   {t('auth.signIn')}
