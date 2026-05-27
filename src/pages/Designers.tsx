@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDropzone, type FileRejection } from 'react-dropzone';
 import { useNavigate, Link } from 'react-router-dom';
@@ -8,17 +8,18 @@ import {
   AlertTriangle,
   Lock,
   ChevronRight,
+  DollarSign,
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
-import { quote, usdt, PROTOCOL_FEE_RATE, type Resolution } from '../lib/pricing';
+import { usdt } from '../lib/pricing';
 import { useAuth } from '../context/AuthContext';
 import { useCreateJob, useMyJobs } from '../hooks/useJobs';
 import { uploadArchive } from '../hooks/useJobFiles';
 import type { JobStatus } from '../types/database';
 
 const ACCEPTED_EXT = ['.blend', '.max', '.c4d', '.zip'];
-const MAX_SIZE = 50 * 1024 * 1024; // 50 MB (лимит Supabase Free tier)
-const RESOLUTIONS: Resolution[] = ['1080p', '4K', '8K'];
+const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+const PROTOCOL_FEE_RATE = 0.03; // 3% комиссия платформы
 
 const STATUS_LABELS: Record<JobStatus, string> = {
   open: '🟢',
@@ -50,13 +51,16 @@ export function Designers() {
 
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [resolution, setResolution] = useState<Resolution>('4K');
+  const [resolution, setResolution] = useState<'1080p' | '4K' | '8K'>('4K');
   const [frameStart, setFrameStart] = useState(1);
   const [frameEnd, setFrameEnd] = useState(30);
+  const [budgetInput, setBudgetInput] = useState('');
   const [uploading, setUploading] = useState(false);
 
   const frames = Math.max(0, frameEnd - frameStart + 1);
-  const price = useMemo(() => quote(resolution, frames), [resolution, frames]);
+  const budget = Math.max(0, parseFloat(budgetInput) || 0);
+  const protocolFee = budget * PROTOCOL_FEE_RATE;
+  const total = budget + protocolFee;
 
   const onDrop = useCallback(
     (accepted: File[], rejected: FileRejection[]) => {
@@ -87,16 +91,15 @@ export function Designers() {
   });
 
   const handleLockEscrow = async () => {
-    if (!file || frames <= 0 || !user) return;
+    if (!file || frames <= 0 || budget <= 0 || !user) return;
     setUploading(true);
     try {
-      // 1. Создаём запись (получаем id) — потом загружаем файл
       const jobData = await createJob.mutateAsync({
-        title: file.name.replace(/\.[^.]+$/, ''), // имя без расширения
+        title: file.name.replace(/\.[^.]+$/, ''),
         resolution,
         frames,
-        total_usdt: price.total,
-        archive_path: 'pending', // временно, обновим сразу
+        total_usdt: total,
+        archive_path: 'pending',
         designer_id: user.id,
       });
       // 2. Загружаем архив в Storage
@@ -112,6 +115,7 @@ export function Designers() {
   };
 
   const isBusy = uploading || createJob.isPending;
+  const RESOLUTIONS = ['1080p', '4K', '8K'] as const;
 
   return (
     <div className="flex flex-col gap-8">
@@ -204,36 +208,49 @@ export function Designers() {
           </GlassCard>
         </div>
 
-        {/* ПРАВО — калькулятор + кнопка */}
+        {/* ПРАВО — бюджет + кнопка */}
         <GlassCard className="flex h-fit flex-col gap-4 p-6">
-          <h2 className="font-display text-lg font-semibold">
-            {t('designers.calculator.title')}
-          </h2>
-          <dl className="flex flex-col gap-3 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">{t('designers.calculator.costPerFrame')}</dt>
-              <dd className="nums">{usdt(price.ratePerFrame)}</dd>
+          <h2 className="font-display text-lg font-semibold">Бюджет проекта</h2>
+
+          {/* Ввод бюджета */}
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-muted">Сколько вы готовы заплатить (USDT)</span>
+            <div className="relative">
+              <DollarSign size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                value={budgetInput}
+                onChange={(e) => setBudgetInput(e.target.value)}
+                placeholder="0.00"
+                className="w-full rounded-lg glass ps-9 pe-4 py-2.5 text-sm nums"
+              />
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">{t('designers.calculator.frames')}</dt>
-              <dd className="nums">× {price.frames}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">
-                {t('designers.calculator.networkFee')} ({Math.round(PROTOCOL_FEE_RATE * 100)}%)
-              </dt>
-              <dd className="nums">{usdt(price.protocolFee)}</dd>
-            </div>
-            <div className="my-1 h-px bg-border/10" />
-            <div className="flex items-center justify-between gap-4">
-              <dt className="font-medium">{t('designers.calculator.total')}</dt>
-              <dd className="nums text-lg font-bold text-accent-2">{usdt(price.total)}</dd>
-            </div>
-          </dl>
+          </label>
+
+          {/* Разбивка */}
+          {budget > 0 && (
+            <dl className="flex flex-col gap-3 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-muted">Ваш бюджет</dt>
+                <dd className="nums">{usdt(budget)}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-muted">Комиссия платформы (3%)</dt>
+                <dd className="nums">{usdt(protocolFee)}</dd>
+              </div>
+              <div className="my-1 h-px bg-border/10" />
+              <div className="flex items-center justify-between gap-4">
+                <dt className="font-medium">Итого к оплате</dt>
+                <dd className="nums text-lg font-bold text-accent-2">{usdt(total)}</dd>
+              </div>
+            </dl>
+          )}
 
           <button
             type="button"
-            disabled={!file || frames <= 0 || isBusy}
+            disabled={!file || frames <= 0 || budget <= 0 || isBusy}
             onClick={handleLockEscrow}
             className="flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >

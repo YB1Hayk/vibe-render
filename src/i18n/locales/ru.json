@@ -63,7 +63,7 @@
     ]
   },
   "auth": {
-    "signIn": "Войти через Google",
+    "signIn": "Войти",
     "signOut": "Выйти",
     "loading": "Загрузка…"
   },

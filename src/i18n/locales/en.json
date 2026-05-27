@@ -63,7 +63,7 @@
     ]
   },
   "auth": {
-    "signIn": "Sign in with Google",
+    "signIn": "Sign In",
     "signOut": "Sign Out",
     "loading": "Loading…"
   },

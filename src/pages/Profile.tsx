@@ -1,28 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts';
 import { ShieldCheck, Link as LinkIcon } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { GlassCard } from '../components/GlassCard';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-
-const ACTIVITY = [
-  { month: 'Dec', earnings: 280, spendings: 190 },
-  { month: 'Jan', earnings: 340, spendings: 220 },
-  { month: 'Feb', earnings: 300, spendings: 260 },
-  { month: 'Mar', earnings: 420, spendings: 240 },
-  { month: 'Apr', earnings: 390, spendings: 310 },
-  { month: 'May', earnings: 480, spendings: 280 },
-];
 
 function Toggle({ label, defaultOn = false }: { label: string; defaultOn?: boolean }) {
   const [on, setOn] = useState(defaultOn);
@@ -76,11 +58,6 @@ export function Profile() {
     setLinkingWallet(false);
   };
 
-  const stats = [
-    { label: t('profile.stats.transacted'), value: '$1,250.00', delta: '+12.4%' },
-    { label: t('profile.stats.successRate'), value: '99.4%', delta: '+0.6%' },
-    { label: t('profile.stats.activeContracts'), value: '2', delta: t('profile.stats.live') },
-  ];
 
   return (
     <div className="flex flex-col gap-8">
@@ -120,41 +97,6 @@ export function Profile() {
               <ShieldCheck size={12} /> {t('profile.network')}
             </span>
           </div>
-        </div>
-      </GlassCard>
-
-      {/* Метрики */}
-      <section className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))]">
-        {stats.map((s) => (
-          <GlassCard key={s.label} className="flex flex-col gap-1 p-6">
-            <span className="font-display text-2xl font-bold nums">{s.value}</span>
-            <span className="text-sm text-muted">{s.label}</span>
-            <span className="text-xs text-success">{s.delta}</span>
-          </GlassCard>
-        ))}
-      </section>
-
-      {/* График активности */}
-      <GlassCard className="flex flex-col gap-4 p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold">{t('profile.activity.title')}</h2>
-          <span className="text-xs text-success">{t('profile.activity.trend', { value: '+24%' })}</span>
-        </div>
-        <p className="text-sm text-muted">{t('profile.activity.subtitle')}</p>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={ACTIVITY}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 100% / 0.06)" />
-              <XAxis dataKey="month" stroke="hsl(240 6% 72%)" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="hsl(240 6% 72%)" fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip
-                cursor={{ fill: 'hsl(0 0% 100% / 0.04)' }}
-                contentStyle={{ background: 'hsl(240 12% 10%)', border: '1px solid hsl(0 0% 100% / 0.1)', borderRadius: 12, color: 'hsl(0 0% 98%)' }}
-              />
-              <Bar dataKey="earnings" fill="hsl(262 83% 64%)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="spendings" fill="hsl(190 95% 55%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
       </GlassCard>
 
