@@ -22,6 +22,8 @@ interface AuthContextValue {
   signInWith: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Мгновенно обновить профиль локально без DB-запроса */
+  patchProfile: (updates: Partial<Profile>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -47,6 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const p = await fetchProfile(user.id);
     setProfile(p);
   }, [user]);
+
+  const patchProfile = useCallback((updates: Partial<Profile>) => {
+    setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+  }, []);
 
   useEffect(() => {
     // Читаем текущую сессию при монтировании (нужно после OAuth redirect)
@@ -98,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInWithDiscord, signInWithMicrosoft, signInWith, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInWithDiscord, signInWithMicrosoft, signInWith, signOut, refreshProfile, patchProfile }}>
       {children}
     </AuthContext.Provider>
   );
