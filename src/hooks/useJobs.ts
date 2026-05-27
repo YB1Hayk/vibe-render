@@ -22,6 +22,23 @@ export function useOpenJobs() {
   });
 }
 
+/** Задания, взятые рендерером (все кроме open). */
+export function useRendererJobs(rendererId: string | undefined) {
+  return useQuery({
+    queryKey: ['jobs', 'renderer', rendererId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('renderer_id', rendererId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Job[];
+    },
+    enabled: !!rendererId,
+  });
+}
+
 /** Задания конкретного дизайнера. */
 export function useMyJobs(designerId: string | undefined) {
   return useQuery({

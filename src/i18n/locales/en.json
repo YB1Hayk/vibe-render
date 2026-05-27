@@ -139,6 +139,8 @@
       "action": "Action"
     },
     "status": { "available": "Available", "claimed": "Claimed", "rendering": "Rendering", "review": "In Review", "completed": "Completed" },
+    "myJobs": "My Jobs",
+    "availableJobs": "Available Jobs",
     "claim": "Claim Job",
     "download": "Download Source",
     "jobs": [

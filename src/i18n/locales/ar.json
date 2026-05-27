@@ -139,6 +139,8 @@
       "action": "إجراء"
     },
     "status": { "available": "متاحة", "claimed": "مستلَمة", "rendering": "قيد التصيير", "review": "قيد المراجعة", "completed": "مكتملة" },
+    "myJobs": "مهامي",
+    "availableJobs": "المهام المتاحة",
     "claim": "استلام المهمة",
     "download": "تنزيل المصدر",
     "jobs": [

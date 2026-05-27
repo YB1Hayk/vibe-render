@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { JobBoard } from '../components/JobBoard';
 import { useTransactionState } from '../hooks/useTransactionState';
-import { useOpenJobs, useClaimJob } from '../hooks/useJobs';
+import { useOpenJobs, useClaimJob, useRendererJobs } from '../hooks/useJobs';
 import { getArchiveUrl } from '../hooks/useJobFiles';
 import { useAuth } from '../context/AuthContext';
-import type { Job as DBJob } from '../types/database';
+import { usdt } from '../lib/pricing';
+import type { Job as DBJob, JobStatus } from '../types/database';
 
 export function Operators() {
   const { t } = useTranslation();
@@ -16,8 +18,17 @@ export function Operators() {
   const withdraw = useTransactionState();
 
   const { data: dbJobs, isLoading } = useOpenJobs();
+  const { data: myJobs } = useRendererJobs(user?.id);
   const claimJob = useClaimJob();
   const [claimError, setClaimError] = useState<string | null>(null);
+
+  const STATUS_LABELS: Record<JobStatus, string> = {
+    open: '🟢',
+    claimed: '🔵',
+    rendering: '🔵',
+    review: '🟡',
+    completed: '⚪',
+  };
 
   // Маппинг Supabase Job → формат JobBoard
   const jobs = (dbJobs ?? []).map((j: DBJob) => ({
@@ -72,6 +83,34 @@ export function Operators() {
           {t('operators.withdraw')}
         </button>
       </GlassCard>
+
+      {/* МОИ ЗАДАНИЯ (рендерер видит что взял) */}
+      {myJobs && myJobs.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-display text-xl font-semibold">{t('operators.myJobs')}</h2>
+          <div className="flex flex-col gap-3">
+            {myJobs.map((job) => (
+              <GlassCard key={job.id} hover className="p-4">
+                <Link to={`/jobs/${job.id}`} className="flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex flex-col gap-0.5">
+                    <p className="font-medium truncate">{job.title}</p>
+                    <p className="text-xs text-muted nums">
+                      {job.resolution} · {job.frames} {t('jobs.frames')} · {usdt(job.total_usdt)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm">{STATUS_LABELS[job.status]}</span>
+                    <span className="text-xs text-muted">{t(`jobs.status.${job.status}`)}</span>
+                    <ChevronRight size={16} className="text-muted" />
+                  </div>
+                </Link>
+              </GlassCard>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <h2 className="font-display text-xl font-semibold">{t('operators.availableJobs')}</h2>
 
       {claimError && (
         <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
