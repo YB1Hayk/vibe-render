@@ -57,7 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(p);
       }
       setLoading(false);
+    }).catch(() => {
+      // Supabase недоступен — всё равно убираем лоадер
+      setLoading(false);
     });
+
+    // Фолбэк: если через 3 секунды loading ещё true — сбрасываем
+    const fallback = setTimeout(() => setLoading(false), 3000);
 
     // Подписка на изменения сессии (login / logout / token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -71,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); clearTimeout(fallback); };
   }, []);
 
   const signInWith = useCallback(async (provider: OAuthProvider) => {
