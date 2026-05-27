@@ -1,42 +1,53 @@
+import { useEffect } from 'react';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import '@rainbow-me/rainbowkit/styles.css';
 import { wagmiConfig } from './web3/wagmi';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
-import { RoleSelectModal } from './components/RoleSelectModal';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { AuthCallback } from './pages/AuthCallback';
+import { SelectRole } from './pages/SelectRole';
 import { Designers } from './pages/Designers';
 import { Operators } from './pages/Operators';
 import { Profile } from './pages/Profile';
 import { JobDetail } from './pages/JobDetail';
 
-/**
- * Порядок провайдеров:
- * AuthProvider → WagmiProvider → QueryClientProvider → RainbowKitProvider → Router
- */
 const queryClient = new QueryClient();
 
-/** Внутренний компонент — видит useAuth() после AuthProvider. */
-function AppInner() {
+/** Перенаправляет на /select-role если пользователь залогинен, но не выбрал роль. */
+function RoleGuard() {
   const { user, profile, loading } = useAuth();
-  const showRoleModal = !loading && user !== null && profile?.role == null;
+  const navigate = useNavigate();
+  const location = useLocation();
 
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    if (profile?.role) return;
+    if (location.pathname === '/select-role') return;
+    navigate('/select-role', { replace: true });
+  }, [loading, user, profile?.role, location.pathname, navigate]);
+
+  return null;
+}
+
+function AppInner() {
   return (
     <BrowserRouter>
+      <RoleGuard />
       <Navbar />
-      {showRoleModal && <RoleSelectModal />}
       <main className="mx-auto max-w-7xl px-4 py-10">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/select-role" element={<SelectRole />} />
           <Route
             path="/designers"
             element={
