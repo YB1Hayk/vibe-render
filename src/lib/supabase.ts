@@ -1,14 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Логируем в консоль при старте чтобы видеть проблему
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Add them to .env.local',
-  );
+  console.error('[Supabase] Missing env vars:', {
+    VITE_SUPABASE_URL: supabaseUrl ? 'OK' : 'MISSING',
+    VITE_SUPABASE_ANON_KEY: supabaseAnonKey ? 'OK' : 'MISSING',
+  });
 }
 
-/** Единственный экземпляр клиента Supabase для всего приложения. */
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(
+  supabaseUrl ?? 'https://cepttkuzuudzlssveiac.supabase.co',
+  supabaseAnonKey ?? '',
+  {
+    auth: {
+      detectSessionInUrl: true,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  },
+);
