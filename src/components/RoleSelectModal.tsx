@@ -25,14 +25,14 @@ export function RoleSelectModal() {
     navigate(role === 'designer' ? '/designers' : '/operators', { replace: true });
 
     // 2. Сохраняем в БД в фоне (fire & forget)
+    // При ошибке НЕ сбрасываем локальный стейт — пользователь продолжает работу
     supabase
       .from('profiles')
       .upsert({ id: user.id, role }, { onConflict: 'id' })
       .then(({ error }) => {
         if (error) {
           console.error('[RoleSelectModal] DB save failed:', error.message);
-          // Если не сохранилось — обновим из БД (покажет модал снова если надо)
-          refreshProfile();
+          // Не вызываем refreshProfile — не сбрасываем роль в null
         }
       });
   };
