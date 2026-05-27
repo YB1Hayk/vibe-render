@@ -2,7 +2,7 @@
   "nav": {
     "home": "Home",
     "designers": "For Designers",
-    "operators": "For Node Operators",
+    "operators": "For Renderers",
     "profile": "Profile"
   },
   "wallet": {
@@ -87,6 +87,7 @@
     "approve": "Approve & Release Escrow",
     "downloadResult": "Download Result",
     "completed": "Job completed ✓",
+    "viewJob": "View Job",
     "chat": "Chat",
     "chatEmpty": "No messages yet",
     "sendMessage": "Write a message…",

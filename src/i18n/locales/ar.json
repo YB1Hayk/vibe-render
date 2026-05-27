@@ -2,7 +2,7 @@
   "nav": {
     "home": "الرئيسية",
     "designers": "للمصممين",
-    "operators": "لمشغّلي العُقد",
+    "operators": "للمُصيِّرين",
     "profile": "الملف الشخصي"
   },
   "wallet": {
@@ -87,6 +87,7 @@
     "approve": "موافقة وتحرير الضمان",
     "downloadResult": "تنزيل النتيجة",
     "completed": "اكتملت المهمة ✓",
+    "viewJob": "عرض المهمة",
     "chat": "المحادثة",
     "chatEmpty": "لا توجد رسائل بعد",
     "sendMessage": "اكتب رسالة…",

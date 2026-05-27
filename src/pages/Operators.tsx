@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { GlassCard } from '../components/GlassCard';
@@ -16,6 +17,7 @@ export function Operators() {
 
   const { data: dbJobs, isLoading } = useOpenJobs();
   const claimJob = useClaimJob();
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   // Маппинг Supabase Job → формат JobBoard
   const jobs = (dbJobs ?? []).map((j: DBJob) => ({
@@ -30,8 +32,14 @@ export function Operators() {
 
   const handleClaim = async (job: (typeof jobs)[0]) => {
     if (!user) return;
-    await claimJob.mutateAsync({ jobId: job.id, rendererId: user.id });
-    navigate(`/jobs/${job.id}`);
+    setClaimError(null);
+    try {
+      await claimJob.mutateAsync({ jobId: job.id, rendererId: user.id });
+      navigate(`/jobs/${job.id}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Ошибка при взятии задачи';
+      setClaimError(msg);
+    }
   };
 
   const handleDownload = async (job: (typeof jobs)[0]) => {
@@ -64,6 +72,17 @@ export function Operators() {
           {t('operators.withdraw')}
         </button>
       </GlassCard>
+
+      {claimError && (
+        <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {claimError}
+          {claimError.includes('row-level security') && (
+            <p className="mt-1 text-xs text-danger/70">
+              Необходимо обновить политику RLS в Supabase. Запустите SQL из инструкции.
+            </p>
+          )}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12">

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { GlassCard } from './GlassCard';
 import { usdt } from '../lib/pricing';
 import type { JobStatus } from '../types/database';
@@ -31,6 +32,7 @@ const COLS = 'md:grid-cols-[2fr_1fr_1fr_1fr_auto]';
 
 export function JobBoard({ jobs, onClaim, onDownload }: JobBoardProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   return (
     <div role="table" aria-label={t('operators.title')} className="flex flex-col gap-3">
@@ -84,20 +86,25 @@ export function JobBoard({ jobs, onClaim, onDownload }: JobBoardProps) {
 
             {/* Actions */}
             <div role="cell" className="flex gap-2 md:justify-end">
-              <button
-                type="button"
-                onClick={() => onDownload?.(job)}
-                className="flex-1 md:flex-none rounded-lg border border-border/15 px-3 py-2 md:py-1.5 text-sm transition-colors hover:border-accent/40"
-              >
-                {t('operators.download')}
-              </button>
-              <button
-                type="button"
-                onClick={() => onClaim?.(job)}
-                className="flex-1 md:flex-none rounded-lg bg-accent px-3 py-2 md:py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-              >
-                {t('operators.claim')}
-              </button>
+              {status === 'open' ? (
+                /* Только кнопка "Взять задачу" для открытых заданий */
+                <button
+                  type="button"
+                  onClick={() => onClaim?.(job)}
+                  className="flex-1 md:flex-none rounded-lg bg-accent px-3 py-2 md:py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  {t('operators.claim')}
+                </button>
+              ) : (
+                /* Для взятых/рендерящихся/на проверке/завершённых — кнопка перехода к заданию */
+                <button
+                  type="button"
+                  onClick={() => navigate(`/jobs/${job.id}`)}
+                  className="flex-1 md:flex-none rounded-lg border border-border/15 px-3 py-2 md:py-1.5 text-sm transition-colors hover:border-accent/40"
+                >
+                  {t('jobs.viewJob')}
+                </button>
+              )}
             </div>
           </GlassCard>
         );
