@@ -2,51 +2,52 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-/**
- * Страница-обработчик OAuth редиректа.
- * После авторизации Supabase отправляет сюда с токеном в хэше URL.
- * Мы ждём сессию и отправляем пользователя дальше.
- */
 export function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
     let done = false;
 
-    const redirect = () => {
+    const finish = (to: string) => {
       if (done) return;
       done = true;
-      navigate('/', { replace: true });
+      navigate(to, { replace: true });
     };
 
-    // Подписываемся на изменение сессии — это самый надёжный способ
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // Listen for auth state change — catches events that fire after this effect runs
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         subscription.unsubscribe();
-        redirect();
+        clearInterval(pollId);
+        clearTimeout(timeoutId);
+        finish('/');
       }
     });
 
-    // Проверяем текущую сессию — может уже есть
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Poll getSession every 300 ms — catches the case where the SIGNED_IN event
+    // fired before our listener was registered (Supabase processes hash asynchronously
+    // and may emit the event before React effects run)
+    const pollId = setInterval(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        clearInterval(pollId);
+        clearTimeout(timeoutId);
         subscription.unsubscribe();
-        redirect();
+        finish('/');
       }
-    });
+    }, 300);
 
-    // Таймаут: если через 8 сек ничего — отправляем на логин
-    const timer = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      clearInterval(pollId);
       subscription.unsubscribe();
-      if (!done) {
-        done = true;
-        navigate('/login', { replace: true });
-      }
-    }, 8000);
+      finish('/login');
+    }, 10_000);
 
     return () => {
+      done = true;
       subscription.unsubscribe();
-      clearTimeout(timer);
+      clearInterval(pollId);
+      clearTimeout(timeoutId);
     };
   }, [navigate]);
 
