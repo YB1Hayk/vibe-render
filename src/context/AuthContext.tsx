@@ -77,7 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         const p = await fetchProfile(session.user.id);
-        setProfile(p);
+        // Не перезаписываем роль если она уже стоит локально (защита от race condition)
+        setProfile((current) => {
+          if (current?.role && !p?.role) return current;
+          return p;
+        });
       } else {
         setProfile(null);
       }
