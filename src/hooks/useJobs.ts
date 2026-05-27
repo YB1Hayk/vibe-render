@@ -33,9 +33,11 @@ export function useRendererJobs(rendererId: string | undefined) {
         .eq('renderer_id', rendererId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data as Job[];
+      return (data as Job[]) ?? [];
     },
     enabled: !!rendererId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
