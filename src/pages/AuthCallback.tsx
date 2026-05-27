@@ -1,55 +1,21 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 
+/**
+ * OAuth callback page. Supabase processes the #access_token hash automatically
+ * (detectSessionInUrl: true). We wait 800 ms for the session to be stored, then
+ * do a hard navigation to '/' so the fresh page load picks it up from localStorage.
+ *
+ * We intentionally avoid useNavigate() here — Supabase calls history.replaceState
+ * while processing the hash, which changes React Router's location reference and
+ * causes useNavigate-based effects to restart, resetting any timeout.
+ */
 export function AuthCallback() {
-  const navigate = useNavigate();
-
   useEffect(() => {
-    let done = false;
-
-    const finish = (to: string) => {
-      if (done) return;
-      done = true;
-      navigate(to, { replace: true });
-    };
-
-    // Listen for auth state change — catches events that fire after this effect runs
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        subscription.unsubscribe();
-        clearInterval(pollId);
-        clearTimeout(timeoutId);
-        finish('/');
-      }
-    });
-
-    // Poll getSession every 300 ms — catches the case where the SIGNED_IN event
-    // fired before our listener was registered (Supabase processes hash asynchronously
-    // and may emit the event before React effects run)
-    const pollId = setInterval(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        clearInterval(pollId);
-        clearTimeout(timeoutId);
-        subscription.unsubscribe();
-        finish('/');
-      }
-    }, 300);
-
-    const timeoutId = setTimeout(() => {
-      clearInterval(pollId);
-      subscription.unsubscribe();
-      finish('/login');
-    }, 10_000);
-
-    return () => {
-      done = true;
-      subscription.unsubscribe();
-      clearInterval(pollId);
-      clearTimeout(timeoutId);
-    };
-  }, [navigate]);
+    const id = setTimeout(() => {
+      window.location.replace('/');
+    }, 800);
+    return () => clearTimeout(id);
+  }, []);
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center flex-col gap-4">

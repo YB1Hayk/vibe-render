@@ -10,7 +10,6 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { AuthCallback } from './pages/AuthCallback';
-import { SelectRole } from './pages/SelectRole';
 import { Designers } from './pages/Designers';
 import { Operators } from './pages/Operators';
 import { Profile } from './pages/Profile';
@@ -27,7 +26,6 @@ function AppInner() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/select-role" element={<SelectRole />} />
           <Route
             path="/designers"
             element={
