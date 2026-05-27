@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, ArrowLeft, KeyRound } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+
+const REDIRECT_URL = 'https://vibe-render.vercel.app';
 
 const OAUTH_PROVIDERS = [
   {
@@ -28,7 +30,7 @@ const OAUTH_PROVIDERS = [
   },
 ] as const;
 
-type Step = 'choose' | 'email-input' | 'email-otp';
+type Step = 'choose' | 'email-input' | 'email-sent';
 
 export function Login() {
   const { user, profile, loading, signInWith } = useAuth();
@@ -36,11 +38,8 @@ export function Login() {
 
   const [step, setStep] = useState<Step>('choose');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
   const [emailSending, setEmailSending] = useState(false);
-  const [otpVerifying, setOtpVerifying] = useState(false);
   const [emailError, setEmailError] = useState('');
-  const [otpError, setOtpError] = useState('');
 
   // Редирект если уже залогинен
   useEffect(() => {
@@ -51,31 +50,20 @@ export function Login() {
     }
   }, [loading, user, profile, navigate]);
 
-  const handleSendOtp = async () => {
+  const handleSendMagicLink = async () => {
     if (!email.trim()) return;
     setEmailError('');
     setEmailSending(true);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: REDIRECT_URL,
+      },
     });
     setEmailSending(false);
     if (error) { setEmailError(error.message); return; }
-    setStep('email-otp');
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otp.trim()) return;
-    setOtpError('');
-    setOtpVerifying(true);
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: otp.trim(),
-      type: 'email',
-    });
-    setOtpVerifying(false);
-    if (error) { setOtpError('Неверный код. Попробуй ещё раз.'); return; }
-    // useEffect выше сделает редирект
+    setStep('email-sent');
   };
 
   return (
@@ -89,8 +77,8 @@ export function Login() {
           </div>
           <h1 className="font-display text-2xl font-bold">Войти в VibeRender</h1>
           <p className="text-sm text-muted">
-            {step === 'email-otp'
-              ? `Код отправлен на ${email}`
+            {step === 'email-sent'
+              ? `Письмо отправлено на ${email}`
               : 'Выберите удобный способ входа'}
           </p>
         </div>
@@ -98,7 +86,6 @@ export function Login() {
         {/* ШАГ 1: Выбор провайдера */}
         {step === 'choose' && (
           <div className="flex flex-col gap-3">
-            {/* OAuth кнопки */}
             {OAUTH_PROVIDERS.map((p) => (
               <button
                 key={p.id}
@@ -111,14 +98,12 @@ export function Login() {
               </button>
             ))}
 
-            {/* Разделитель */}
             <div className="flex items-center gap-3 my-1">
               <div className="flex-1 h-px bg-border/15" />
               <span className="text-xs text-muted">или</span>
               <div className="flex-1 h-px bg-border/15" />
             </div>
 
-            {/* Email кнопка */}
             <button
               type="button"
               onClick={() => setStep('email-input')}
@@ -139,7 +124,7 @@ export function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMagicLink()}
                 placeholder="you@example.com"
                 autoFocus
                 className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none focus:border-accent/50 transition-colors"
@@ -149,10 +134,10 @@ export function Login() {
             <button
               type="button"
               disabled={!email.trim() || emailSending}
-              onClick={handleSendOtp}
+              onClick={handleSendMagicLink}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
             >
-              {emailSending ? 'Отправляем…' : 'Отправить код'}
+              {emailSending ? 'Отправляем…' : 'Отправить ссылку для входа'}
             </button>
             <button type="button" onClick={() => setStep('choose')} className="flex items-center gap-1 text-xs text-muted hover:text-fg transition-colors mx-auto">
               <ArrowLeft size={12} /> Назад
@@ -160,46 +145,34 @@ export function Login() {
           </div>
         )}
 
-        {/* ШАГ 3: Ввод OTP кода */}
-        {step === 'email-otp' && (
-          <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-muted">6-значный код из письма</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={(e) => e.key === 'Enter' && handleVerifyOtp()}
-                placeholder="000000"
-                autoFocus
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] outline-none focus:border-accent/50 transition-colors"
-              />
-            </label>
-            {otpError && <p className="text-xs text-danger text-center">{otpError}</p>}
+        {/* ШАГ 3: Письмо отправлено */}
+        {step === 'email-sent' && (
+          <div className="flex flex-col items-center gap-4 text-center">
+            <CheckCircle2 size={48} className="text-success" />
+            <div>
+              <p className="font-medium">Проверь почту!</p>
+              <p className="mt-1 text-sm text-muted">
+                Мы отправили ссылку на <strong>{email}</strong>.
+                <br />Нажми на неё — и ты войдёшь на сайт.
+              </p>
+            </div>
+            <p className="text-xs text-muted/60">Письмо могло попасть в Спам</p>
             <button
               type="button"
-              disabled={otp.length < 6 || otpVerifying}
-              onClick={handleVerifyOtp}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              onClick={() => { setStep('email-input'); }}
+              className="text-xs text-muted hover:text-fg transition-colors"
             >
-              <KeyRound size={14} />
-              {otpVerifying ? 'Проверяем…' : 'Подтвердить'}
-            </button>
-            <button type="button" onClick={() => { setStep('email-input'); setOtp(''); setOtpError(''); }} className="flex items-center gap-1 text-xs text-muted hover:text-fg transition-colors mx-auto">
-              <ArrowLeft size={12} /> Изменить email
+              Отправить ещё раз
             </button>
           </div>
         )}
 
-        {/* Сноска */}
         <p className="mt-6 text-center text-xs text-muted/50">
           Входя, вы соглашаетесь с условиями использования VibeRender
         </p>
         <div className="mt-3 text-center">
-          <button type="button" onClick={() => navigate(-1)} className="text-xs text-muted hover:text-fg transition-colors">
-            ← Вернуться назад
+          <button type="button" onClick={() => navigate('/')} className="text-xs text-muted hover:text-fg transition-colors">
+            ← На главную
           </button>
         </div>
       </div>

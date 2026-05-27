@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { Role } from '../types/database';
@@ -8,16 +8,18 @@ interface Props {
   requiredRole?: Role;
 }
 
-/**
- * Охраняет роуты:
- * - loading → скелетон
- * - нет user → / (главная)
- * - requiredRole не совпадает → /
- */
 export function ProtectedRoute({ children, requiredRole }: Props) {
   const { user, profile, loading } = useAuth();
+  // Максимум 4 секунды на загрузку — потом считаем что не залогинен
+  const [timedOut, setTimedOut] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setTimedOut(true), 4000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
+  if (loading && !timedOut) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent" />
@@ -25,9 +27,12 @@ export function ProtectedRoute({ children, requiredRole }: Props) {
     );
   }
 
-  if (!user) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/login" replace />;
 
-  if (requiredRole && profile?.role !== requiredRole) return <Navigate to="/" replace />;
+  if (requiredRole && profile?.role !== requiredRole) {
+    // Залогинен но не та роль — отправляем на главную
+    return <Navigate to="/" replace />;
+  }
 
   return <>{children}</>;
 }
