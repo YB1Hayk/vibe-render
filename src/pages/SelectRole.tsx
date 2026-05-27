@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Cpu, Palette } from 'lucide-react';
@@ -10,17 +11,34 @@ export function SelectRole() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, patchProfile } = useAuth();
+  const [saving, setSaving] = useState<Role | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const choose = (role: Role) => {
-    if (!user) return;
-    patchProfile({ role });
-    navigate(role === 'designer' ? '/designers' : '/operators', { replace: true });
-    supabase
-      .from('profiles')
-      .upsert({ id: user.id, role }, { onConflict: 'id' })
-      .then(({ error }) => {
-        if (error) console.error('[SelectRole] DB save failed:', error.message);
-      });
+  const choose = async (role: Role) => {
+    if (!user || saving) return;
+    setError(null);
+    setSaving(role);
+
+    try {
+      // Сначала сохраняем в БД — потом переходим
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, role }, { onConflict: 'id' });
+
+      if (dbError) {
+        console.error('[SelectRole] DB error:', dbError.message);
+        setError('Не удалось сохранить роль. Попробуй ещё раз.');
+        setSaving(null);
+        return;
+      }
+
+      // Роль сохранена — обновляем локальный стейт и переходим
+      patchProfile({ role });
+      navigate(role === 'designer' ? '/designers' : '/operators', { replace: true });
+    } catch (e) {
+      setError('Ошибка сети. Проверь подключение.');
+      setSaving(null);
+    }
   };
 
   return (
@@ -31,15 +49,25 @@ export function SelectRole() {
           <p className="text-muted">{t('roleSelect.subtitle')}</p>
         </div>
 
+        {error && (
+          <p className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-2 text-sm text-danger">
+            {error}
+          </p>
+        )}
+
         <div className="grid w-full gap-4 sm:grid-cols-2">
           <GlassCard
             as="button"
             hover
             onClick={() => choose('designer')}
-            className="flex flex-col items-center gap-4 p-8 text-center cursor-pointer"
+            className="flex flex-col items-center gap-4 p-8 text-center cursor-pointer disabled:opacity-50"
           >
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-accent/15 text-accent">
-              <Palette size={32} />
+              {saving === 'designer' ? (
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+              ) : (
+                <Palette size={32} />
+              )}
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-xl font-semibold">{t('roleSelect.designer')}</p>
@@ -51,10 +79,14 @@ export function SelectRole() {
             as="button"
             hover
             onClick={() => choose('renderer')}
-            className="flex flex-col items-center gap-4 p-8 text-center cursor-pointer"
+            className="flex flex-col items-center gap-4 p-8 text-center cursor-pointer disabled:opacity-50"
           >
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-accent-2/15 text-accent-2">
-              <Cpu size={32} />
+              {saving === 'renderer' ? (
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-2 border-t-transparent" />
+              ) : (
+                <Cpu size={32} />
+              )}
             </span>
             <div className="flex flex-col gap-1">
               <p className="font-display text-xl font-semibold">{t('roleSelect.renderer')}</p>
