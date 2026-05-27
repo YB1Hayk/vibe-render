@@ -52,23 +52,16 @@ export function Operators() {
         <div className="min-w-0">
           <p className="text-xs text-muted">{t('operators.balance')}</p>
           <p className="font-display text-3xl font-bold nums">
-            342.50 <span className="text-base text-muted">USDT</span>
+            0.00 <span className="text-base text-muted">USDT</span>
           </p>
-          <p className="text-xs text-success nums">
-            {t('operators.earned24h', { amount: '+18.20 USDT' })}
-          </p>
+          <p className="text-xs text-muted">Баланс обновляется после выполнения заданий</p>
         </div>
         <button
           type="button"
-          disabled={withdraw.isBusy}
-          onClick={() =>
-            withdraw.run(async () => {
-              // TODO: useWriteContract — вызов withdraw() контракта
-            })
-          }
-          className="rounded-xl bg-accent px-5 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          disabled
+          className="rounded-xl bg-accent/40 px-5 py-3 font-medium text-white/50 cursor-not-allowed"
         >
-          {withdraw.isBusy ? t('wallet.pending') : t('operators.withdraw')}
+          {t('operators.withdraw')}
         </button>
       </GlassCard>
 

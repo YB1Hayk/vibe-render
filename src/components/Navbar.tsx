@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, X, LogIn, LogOut, User } from 'lucide-react';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ConnectWalletButton } from './ConnectWalletButton';
 import { useAuth } from '../context/AuthContext';
-import { AuthModal } from './AuthModal';
 
 const NAV_BASE = [
   { to: '/', key: 'nav.home' },
@@ -15,9 +14,9 @@ const NAV_BASE = [
 export function Navbar() {
   const { t } = useTranslation();
   const { user, profile, loading, signOut } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   // Ссылки зависят от роли
   const roleLinks =
@@ -102,7 +101,7 @@ export function Navbar() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => setAuthModalOpen(true)}
+                  onClick={() => navigate('/login')}
                   className="hidden sm:flex items-center gap-1.5 rounded-lg glass px-3 py-2 text-sm transition-colors hover:border-accent/40"
                 >
                   <LogIn size={14} />
@@ -123,9 +122,6 @@ export function Navbar() {
           </button>
         </div>
       </nav>
-
-      {/* Модальное окно входа */}
-      {authModalOpen && <AuthModal onClose={() => setAuthModalOpen(false)} />}
 
       {/* Мобильное меню */}
       {open && (
@@ -154,7 +150,7 @@ export function Navbar() {
             {!loading && !user && (
               <button
                 type="button"
-                onClick={() => { setAuthModalOpen(true); setOpen(false); }}
+                onClick={() => { navigate('/login'); setOpen(false); }}
                 className="flex items-center gap-2 rounded-lg glass px-3 py-2.5 text-sm"
               >
                 <LogIn size={14} />

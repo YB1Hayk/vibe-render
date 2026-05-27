@@ -124,7 +124,7 @@
     "lockEscrow": "Lock Escrow & Deploy Project"
   },
   "operators": {
-    "role": "Node Operator",
+    "role": "Renderer",
     "title": "Global Render Job Board",
     "nodeId": "Node ID",
     "balance": "Available Balance",

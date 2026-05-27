@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { MessagesSquare, Lock, Zap, ChevronDown } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { MessagesSquare, Lock, Zap, ChevronDown, Star, Send } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { CHAIN_LABEL } from '../config/chains';
+import { useAuth } from '../context/AuthContext';
+import { useReviews } from '../hooks/useReviews';
 
 interface Step {
   title: string;
@@ -16,7 +18,31 @@ interface Step {
  */
 export function Home() {
   const { t } = useTranslation();
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewHover, setReviewHover] = useState(0);
+  const { reviews, addReview, isAdding } = useReviews();
+
+  const handleDesignerCTA = () => {
+    if (!user) { navigate('/login'); return; }
+    if (profile?.role === 'designer') { navigate('/designers'); return; }
+    navigate('/profile');
+  };
+  const handleOperatorCTA = () => {
+    if (!user) { navigate('/login'); return; }
+    if (profile?.role === 'renderer') { navigate('/operators'); return; }
+    navigate('/profile');
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewText.trim() || !user) return;
+    await addReview({ content: reviewText.trim(), rating: reviewRating });
+    setReviewText('');
+    setReviewRating(5);
+  };
 
   const stats = [
     { label: t('stats.activeNodes'), value: '2,410' },
@@ -55,18 +81,20 @@ export function Home() {
         </h1>
         <p className="max-w-xl text-balance text-muted">{t('hero.subtitle')}</p>
         <div className="flex flex-wrap justify-center gap-3">
-          <Link
-            to="/designers"
+          <button
+            type="button"
+            onClick={handleDesignerCTA}
             className="rounded-xl bg-accent px-6 py-3 font-medium text-white transition-opacity hover:opacity-90"
           >
             {t('hero.ctaDesigner')}
-          </Link>
-          <Link
-            to="/operators"
+          </button>
+          <button
+            type="button"
+            onClick={handleOperatorCTA}
             className="rounded-xl glass glass-hover px-6 py-3 font-medium"
           >
             {t('hero.ctaOperator')}
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -141,6 +169,95 @@ export function Home() {
             <p className="text-sm text-muted">{desc}</p>
           </GlassCard>
         ))}
+      </section>
+
+      {/* ОТЗЫВЫ */}
+      <section className="flex flex-col gap-8">
+        <div className="flex flex-col gap-2 text-center">
+          <h2 className="h-display text-fluid-h2">Отзывы пользователей</h2>
+          <p className="text-muted">Что говорят дизайнеры и рендереры о VibeRender</p>
+        </div>
+
+        {/* Форма */}
+        {user ? (
+          <GlassCard className="flex flex-col gap-4 p-6 max-w-xl mx-auto w-full">
+            <p className="font-medium text-sm">Оставить отзыв</p>
+            {/* Звёзды */}
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setReviewRating(star)}
+                  onMouseEnter={() => setReviewHover(star)}
+                  onMouseLeave={() => setReviewHover(0)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    size={22}
+                    className={`transition-colors ${
+                      star <= (reviewHover || reviewRating)
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'text-muted'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              placeholder="Расскажите о вашем опыте использования платформы…"
+              rows={3}
+              dir="auto"
+              className="w-full resize-none rounded-xl glass px-4 py-3 text-sm"
+            />
+            <button
+              type="button"
+              disabled={!reviewText.trim() || isAdding}
+              onClick={handleSubmitReview}
+              className="self-end flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              <Send size={14} />
+              Отправить
+            </button>
+          </GlassCard>
+        ) : (
+          <p className="text-center text-sm text-muted">
+            <button type="button" onClick={() => navigate('/login')} className="text-accent hover:underline">
+              Войдите
+            </button>
+            , чтобы оставить отзыв
+          </p>
+        )}
+
+        {/* Список отзывов */}
+        {reviews && reviews.length > 0 && (
+          <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
+            {reviews.map((r) => (
+              <GlassCard key={r.id} className="flex flex-col gap-3 p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/20 font-display text-xs font-bold text-accent">
+                      {r.username?.slice(0, 2).toUpperCase() ?? '?'}
+                    </span>
+                    <span className="text-sm font-medium">{r.username ?? 'Аноним'}</span>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {[1,2,3,4,5].map((s) => (
+                      <Star key={s} size={12} className={s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted'} />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-sm text-muted leading-relaxed">{r.content}</p>
+              </GlassCard>
+            ))}
+          </div>
+        )}
+
+        {reviews && reviews.length === 0 && (
+          <p className="text-center text-sm text-muted py-4">Отзывов пока нет. Будьте первым!</p>
+        )}
       </section>
 
       {/* FAQ */}

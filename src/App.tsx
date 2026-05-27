@@ -10,6 +10,7 @@ import { Navbar } from './components/Navbar';
 import { RoleSelectModal } from './components/RoleSelectModal';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Home } from './pages/Home';
+import { Login } from './pages/Login';
 import { Designers } from './pages/Designers';
 import { Operators } from './pages/Operators';
 import { Profile } from './pages/Profile';
@@ -33,6 +34,7 @@ function AppInner() {
       <main className="mx-auto max-w-7xl px-4 py-10">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
           <Route
             path="/designers"
             element={
