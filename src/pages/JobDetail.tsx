@@ -42,6 +42,7 @@ export function JobDetail() {
   const [msgInput, setMsgInput] = useState('');
   const [resultFile, setResultFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Автоскролл чата вниз
@@ -60,9 +61,17 @@ export function JobDetail() {
   });
 
   const handleDownloadArchive = async () => {
-    if (!job?.archive_path) return;
-    const url = await getArchiveUrl(job.archive_path);
-    window.open(url, '_blank');
+    if (!job?.archive_path || job.archive_path === 'pending') {
+      setDownloadError('Файл ещё не загружен дизайнером. Попробуйте позже.');
+      return;
+    }
+    setDownloadError(null);
+    try {
+      const url = await getArchiveUrl(job.archive_path);
+      window.open(url, '_blank');
+    } catch (e: unknown) {
+      setDownloadError(e instanceof Error ? e.message : 'Не удалось получить ссылку на файл');
+    }
   };
 
   const handleDownloadResult = async () => {
@@ -153,6 +162,12 @@ export function JobDetail() {
           {isRenderer && (
             <GlassCard className="flex flex-col gap-4 p-6">
               <h2 className="font-display text-lg font-semibold">{t('jobs.rendererActions')}</h2>
+
+              {downloadError && (
+                <p className="rounded-xl border border-danger/20 bg-danger/10 px-3 py-2 text-xs text-danger">
+                  {downloadError}
+                </p>
+              )}
 
               {/* Скачать архив */}
               {(job.status === 'claimed' || job.status === 'rendering' || job.status === 'review') && (

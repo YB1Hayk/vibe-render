@@ -56,6 +56,7 @@ export function Designers() {
   const [frameEnd, setFrameEnd] = useState(30);
   const [budgetInput, setBudgetInput] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const frames = Math.max(0, frameEnd - frameStart + 1);
   const budget = Math.max(0, parseFloat(budgetInput) || 0);
@@ -93,7 +94,9 @@ export function Designers() {
   const handleLockEscrow = async () => {
     if (!file || frames <= 0 || budget <= 0 || !user) return;
     setUploading(true);
+    setSubmitError(null);
     try {
+      // 1. Создаём задание в БД
       const jobData = await createJob.mutateAsync({
         title: file.name.replace(/\.[^.]+$/, ''),
         resolution,
@@ -109,6 +112,9 @@ export function Designers() {
       await supabase.from('jobs').update({ archive_path: archivePath }).eq('id', jobData.id);
       // 4. Переходим на страницу задания
       navigate(`/jobs/${jobData.id}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitError(msg);
     } finally {
       setUploading(false);
     }
@@ -257,9 +263,9 @@ export function Designers() {
             <Lock size={16} />
             {isBusy ? t('auth.loading') : t('designers.lockEscrow')}
           </button>
-          {createJob.isError && (
-            <p className="text-center text-xs text-danger">
-              {(createJob.error as Error).message}
+          {submitError && (
+            <p className="rounded-lg bg-danger/10 border border-danger/20 px-3 py-2 text-xs text-danger">
+              {submitError}
             </p>
           )}
         </GlassCard>

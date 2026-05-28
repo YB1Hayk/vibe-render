@@ -19,6 +19,27 @@ export function useOpenJobs() {
       if (error) throw error;
       return data as Job[];
     },
+    retry: false,        // не ретраим — показываем ошибку сразу
+    staleTime: 30_000,
+  });
+}
+
+/** Задания, взятые рендерером (все кроме open). */
+export function useRendererJobs(rendererId: string | undefined) {
+  return useQuery({
+    queryKey: ['jobs', 'renderer', rendererId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('renderer_id', rendererId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data as Job[]) ?? [];
+    },
+    enabled: !!rendererId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 

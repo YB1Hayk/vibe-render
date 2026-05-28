@@ -44,7 +44,21 @@ export function useMessages(jobId: string, senderId: string): UseMessagesResult 
           filter: `job_id=eq.${jobId}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          const newMsg = payload.new as Message;
+          setMessages((prev) => {
+            // Пропускаем если уже есть (могли добавить оптимистично с реальным ID)
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            // Убираем temp-заглушку того же отправителя и заменяем реальным сообщением
+            const tempIdx = prev.findIndex(
+              (m) => m.id.startsWith('temp-') && m.sender_id === newMsg.sender_id,
+            );
+            if (tempIdx !== -1) {
+              const next = [...prev];
+              next[tempIdx] = newMsg;
+              return next;
+            }
+            return [...prev, newMsg];
+          });
         },
       )
       .subscribe();
@@ -60,12 +74,30 @@ export function useMessages(jobId: string, senderId: string): UseMessagesResult 
     async (content: string) => {
       const trimmed = content.trim();
       if (!trimmed) return;
+
+      // Оптимистичное добавление — сообщение появляется мгновенно
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+      const optimistic: Message = {
+        id: tempId,
+        job_id: jobId,
+        sender_id: senderId,
+        content: trimmed,
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimistic]);
+
       const { error } = await supabase.from('messages').insert({
         job_id: jobId,
         sender_id: senderId,
         content: trimmed,
       });
-      if (error) throw error;
+
+      if (error) {
+        // Откатываем при ошибке
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        throw error;
+      }
+      // При успехе Realtime заменит temp на реальное сообщение (см. обработчик выше)
     },
     [jobId, senderId],
   );

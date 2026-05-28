@@ -13,18 +13,17 @@ const NAV_BASE = [
 
 export function Navbar() {
   const { t } = useTranslation();
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Ссылки зависят от роли
-  const roleLinks =
-    profile?.role === 'designer'
-      ? [{ to: '/designers', key: 'nav.designers' }]
-      : profile?.role === 'renderer'
-        ? [{ to: '/operators', key: 'nav.operators' }]
-        : [];
+  const roleLinks = user
+    ? [
+        { to: '/designers', key: 'nav.designers' },
+        { to: '/operators', key: 'nav.operators' },
+      ]
+    : [];
 
   const NAV = [...NAV_BASE.slice(0, 1), ...roleLinks, NAV_BASE[1]];
 
@@ -40,7 +39,7 @@ export function Navbar() {
           VibeRender
         </NavLink>
 
-        {/* Десктоп-меню */}
+        {/* Desktop nav */}
         <ul className="hidden items-center gap-1 lg:flex">
           {NAV.map((item) => (
             <li key={item.to}>
@@ -64,51 +63,47 @@ export function Navbar() {
             <ConnectWalletButton />
           </div>
 
-          {/* Auth кнопка */}
-          {!loading && (
-            <>
-              {user ? (
-                <div className="relative">
+          {/* Auth button — renders immediately; updates when session resolves */}
+          {user ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-accent/20 font-display text-sm font-bold text-accent transition-colors hover:bg-accent/30"
+                title={profile?.username ?? user.email ?? ''}
+              >
+                {initials}
+              </button>
+              {userMenuOpen && (
+                <div className="absolute end-0 top-11 z-50 min-w-[10rem] rounded-xl glass border border-border/10 p-1 shadow-xl">
+                  <NavLink
+                    to="/profile"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-border/10"
+                  >
+                    <User size={14} />
+                    {t('nav.profile')}
+                  </NavLink>
                   <button
                     type="button"
-                    onClick={() => setUserMenuOpen((v) => !v)}
-                    className="grid h-9 w-9 place-items-center rounded-full bg-accent/20 font-display text-sm font-bold text-accent transition-colors hover:bg-accent/30"
-                    title={profile?.username ?? user.email ?? ''}
+                    onClick={() => { signOut(); setUserMenuOpen(false); }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-danger hover:bg-border/10"
                   >
-                    {initials}
+                    <LogOut size={14} />
+                    {t('auth.signOut')}
                   </button>
-                  {userMenuOpen && (
-                    <div className="absolute end-0 top-11 z-50 min-w-[10rem] rounded-xl glass border border-border/10 p-1 shadow-xl">
-                      <NavLink
-                        to="/profile"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-border/10"
-                      >
-                        <User size={14} />
-                        {t('nav.profile')}
-                      </NavLink>
-                      <button
-                        type="button"
-                        onClick={() => { signOut(); setUserMenuOpen(false); }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-danger hover:bg-border/10"
-                      >
-                        <LogOut size={14} />
-                        {t('auth.signOut')}
-                      </button>
-                    </div>
-                  )}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => navigate('/login')}
-                  className="flex items-center gap-1.5 rounded-lg glass px-3 py-2 text-sm transition-colors hover:border-accent/40"
-                >
-                  <LogIn size={14} />
-                  {t('auth.signIn')}
-                </button>
               )}
-            </>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="flex items-center gap-1.5 rounded-lg glass px-3 py-2 text-sm transition-colors hover:border-accent/40"
+            >
+              <LogIn size={14} />
+              {t('auth.signIn')}
+            </button>
           )}
 
           <button
@@ -123,7 +118,7 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* Мобильное меню */}
+      {/* Mobile menu */}
       {open && (
         <div className="border-t border-border/10 px-4 py-3 lg:hidden">
           <ul className="flex flex-col gap-1">
@@ -147,7 +142,7 @@ export function Navbar() {
             <div className="sm:hidden">
               <ConnectWalletButton />
             </div>
-            {!loading && !user && (
+            {!user && (
               <button
                 type="button"
                 onClick={() => { navigate('/login'); setOpen(false); }}
@@ -157,7 +152,7 @@ export function Navbar() {
                 {t('auth.signIn')}
               </button>
             )}
-            {!loading && user && (
+            {user && (
               <button
                 type="button"
                 onClick={() => { signOut(); setOpen(false); }}
