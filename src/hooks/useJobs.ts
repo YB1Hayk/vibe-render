@@ -19,6 +19,8 @@ export function useOpenJobs() {
       if (error) throw error;
       return data as Job[];
     },
+    retry: false,        // не ретраим — показываем ошибку сразу
+    staleTime: 30_000,
   });
 }
 

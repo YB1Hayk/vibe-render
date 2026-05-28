@@ -17,7 +17,7 @@ export function Operators() {
   const { user } = useAuth();
   const withdraw = useTransactionState();
 
-  const { data: dbJobs, isLoading } = useOpenJobs();
+  const { data: dbJobs, isLoading, isError, error } = useOpenJobs();
   const { data: myJobs } = useRendererJobs(user?.id);
   const claimJob = useClaimJob();
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -126,6 +126,13 @@ export function Operators() {
       {isLoading ? (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        </div>
+      ) : isError ? (
+        <div className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <p className="font-medium">Ошибка загрузки заданий</p>
+          <p className="mt-1 text-xs text-danger/70">
+            {(error as Error)?.message ?? 'Проверьте настройки Supabase (RLS / таблица jobs)'}
+          </p>
         </div>
       ) : jobs.length === 0 ? (
         <p className="text-center text-muted py-12">{t('jobs.noJobs')}</p>
