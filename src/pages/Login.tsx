@@ -33,7 +33,7 @@ const OAUTH_PROVIDERS = [
 type Step = 'choose' | 'email-input' | 'email-sent';
 
 export function Login() {
-  const { user, profile, loading, signInWith } = useAuth();
+  const { user, profile, signInWith } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>('choose');
@@ -42,14 +42,14 @@ export function Login() {
   const [emailError, setEmailError] = useState('');
   const [oauthError, setOauthError] = useState('');
 
-  // Редирект если уже залогинен
+  // Redirect away from login page once session resolves
   useEffect(() => {
-    if (!loading && user) {
+    if (user) {
       if (profile?.role === 'designer') navigate('/designers', { replace: true });
       else if (profile?.role === 'renderer') navigate('/operators', { replace: true });
       else navigate('/', { replace: true });
     }
-  }, [loading, user, profile, navigate]);
+  }, [user, profile, navigate]);
 
   const handleSendMagicLink = async () => {
     if (!email.trim()) return;
