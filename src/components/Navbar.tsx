@@ -13,7 +13,7 @@ const NAV_BASE = [
 
 export function Navbar() {
   const { t } = useTranslation();
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -65,9 +65,8 @@ export function Navbar() {
           </div>
 
           {/* Auth кнопка */}
-          {!loading && (
-            <>
-              {user ? (
+          <>
+            {user ? (
                 <div className="relative">
                   <button
                     type="button"
@@ -108,8 +107,7 @@ export function Navbar() {
                   {t('auth.signIn')}
                 </button>
               )}
-            </>
-          )}
+          </>
 
           <button
             type="button"
@@ -147,7 +145,7 @@ export function Navbar() {
             <div className="sm:hidden">
               <ConnectWalletButton />
             </div>
-            {!loading && !user && (
+            {!user && (
               <button
                 type="button"
                 onClick={() => { navigate('/login'); setOpen(false); }}
@@ -157,7 +155,7 @@ export function Navbar() {
                 {t('auth.signIn')}
               </button>
             )}
-            {!loading && user && (
+            {user && (
               <button
                 type="button"
                 onClick={() => { signOut(); setOpen(false); }}

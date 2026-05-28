@@ -1,35 +1,19 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import type { Role } from '../types/database';
 
 interface Props {
   children: ReactNode;
-  requiredRole?: Role;
 }
 
-export function ProtectedRoute({ children, requiredRole }: Props) {
-  const { user, profile, loading } = useAuth();
-  // Максимум 4 секунды на загрузку — потом считаем что не залогинен
-  const [timedOut, setTimedOut] = useState(false);
-
-  useEffect(() => {
-    if (!loading) return;
-    const t = setTimeout(() => setTimedOut(true), 4000);
-    return () => clearTimeout(t);
-  }, [loading]);
-
-  if (loading && !timedOut) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-      </div>
-    );
-  }
-
+/**
+ * Redirects to /login when there is no authenticated user.
+ *
+ * NOTE: AppShell guarantees this component only ever renders when
+ * isInitializing === false, so no local loading state is needed here.
+ */
+export function ProtectedRoute({ children }: Props) {
+  const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-
-  // Роль больше не обязательна для доступа к страницам
-
   return <>{children}</>;
 }

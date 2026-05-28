@@ -15,80 +15,118 @@ type OAuthProvider = 'google' | 'discord' | 'azure';
 interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
+  /** TRUE while initial session + profile fetch is in progress. Nothing renders until this is false. */
+  isInitializing: boolean;
+  /** Alias for isInitializing — keeps Login.tsx compatible */
   loading: boolean;
+  signInWith: (provider: OAuthProvider) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithDiscord: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
-  signInWith: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  /** Мгновенно обновить профиль локально без DB-запроса */
+  /** Update profile fields in context after a DB write (no refetch needed) */
+  updateProfile: (updates: Partial<Profile>) => void;
+  /** @deprecated use updateProfile */
   patchProfile: (updates: Partial<Profile>) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** Загружает профиль из таблицы profiles по user.id. Ретраит 1 раз через 600 мс
- *  на случай race condition между auth.users insert и триггером handle_new_user. */
+/** Fetch profile, retrying once if row not yet created (DB trigger race). */
 async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
   if (data) return data as Profile;
-  // Ретрай: триггер мог не успеть создать строку
-  await new Promise((r) => setTimeout(r, 600));
-  const { data: data2 } = await supabase.from('profiles').select('*').eq('id', userId).single();
+
+  // Retry after 700 ms — handle_new_user trigger may still be running
+  await new Promise((r) => setTimeout(r, 700));
+  const { data: data2 } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
   return (data2 as Profile) ?? null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refreshProfile = useCallback(async () => {
-    if (!user) return;
-    const p = await fetchProfile(user.id);
-    setProfile(p);
-  }, [user]);
-
-  const patchProfile = useCallback((updates: Partial<Profile>) => {
-    // Работает даже если profile === null (создаём минимальный объект)
-    setProfile((prev) => ({ ...(prev ?? ({} as Profile)), ...updates }));
-  }, []);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    // Читаем текущую сессию при монтировании (нужно после OAuth redirect)
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id);
-        setProfile(p);
+    let mounted = true;
+
+    /**
+     * STRICT INITIALIZATION ORDER:
+     * 1. getSession() — reads existing session from localStorage (covers page refresh
+     *    and the case where AuthCallback already stored the session).
+     * 2. If session.user exists → fetchProfile (waits for DB, including retry).
+     * 3. ONLY AFTER both complete → setIsInitializing(false).
+     *
+     * Nothing in the UI renders until isInitializing is false, so there is no
+     * flash, no race-condition redirect, and no stuck loading screen.
+     */
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        if (session?.user) {
+          const p = await fetchProfile(session.user.id);
+          if (!mounted) return;
+          setUser(session.user);
+          setProfile(p);
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      } catch {
+        // Network error — treat as logged out, don't block UI forever
+      } finally {
+        if (mounted) setIsInitializing(false);
       }
-      setLoading(false);
-    }).catch(() => {
-      // Supabase недоступен — всё равно убираем лоадер
-      setLoading(false);
-    });
+    };
 
-    // Фолбэк: если через 3 секунды loading ещё true — сбрасываем
-    const fallback = setTimeout(() => setLoading(false), 3000);
+    init();
 
-    // Подписка на изменения сессии (login / logout / token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id);
-        // Не перезаписываем роль если она уже стоит локально (защита от race condition)
-        setProfile((current) => {
-          if (current?.role && !p?.role) return current;
-          return p;
-        });
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
+    /**
+     * Watch for auth changes that happen AFTER init (e.g. sign-out in another tab,
+     * token refresh). We intentionally do NOT call setIsInitializing(false) here
+     * because init() handles that. These updates happen while the app is running.
+     */
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
 
-    return () => { subscription.unsubscribe(); clearTimeout(fallback); };
+        if (event === 'SIGNED_IN' && session?.user) {
+          const p = await fetchProfile(session.user.id);
+          if (!mounted) return;
+          setUser(session.user);
+          setProfile((current) => {
+            // Don't overwrite an already-set role with null from DB race
+            if (current?.role && !p?.role) return current;
+            return p;
+          });
+          // In case init() hasn't resolved yet (SIGNED_IN fires during OAuth callback load)
+          setIsInitializing(false);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setProfile(null);
+          setIsInitializing(false);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setUser(session.user);
+        }
+      },
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signInWith = useCallback(async (provider: OAuthProvider) => {
@@ -108,14 +146,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInWithDiscord, signInWithMicrosoft, signInWith, signOut, refreshProfile, patchProfile }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const updateProfile = useCallback((updates: Partial<Profile>) => {
+    setProfile((prev) => ({ ...(prev ?? ({} as Profile)), ...updates }));
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    const p = await fetchProfile(user.id);
+    setProfile(p);
+  }, [user]);
+
+  const value: AuthContextValue = {
+    user,
+    profile,
+    isInitializing,
+    loading: isInitializing, // backward-compat alias
+    signInWith,
+    signInWithGoogle,
+    signInWithDiscord,
+    signInWithMicrosoft,
+    signOut,
+    updateProfile,
+    patchProfile: updateProfile,
+    refreshProfile,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/** Хук для доступа к контексту авторизации. Бросает ошибку вне AuthProvider. */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
