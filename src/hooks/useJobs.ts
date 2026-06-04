@@ -10,16 +10,24 @@ import type { Job, JobStatus } from '../types/database';
 export function useOpenJobs() {
   return useQuery({
     queryKey: ['jobs', 'open'],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      // Abort after 8 seconds so the spinner never hangs forever
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8_000);
+      signal?.addEventListener('abort', () => clearTimeout(timeout));
+
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
         .eq('status', 'open')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeout);
       if (error) throw error;
-      return data as Job[];
+      return (data ?? []) as Job[];
     },
-    retry: false,        // не ретраим — показываем ошибку сразу
+    retry: false,
     staleTime: 30_000,
   });
 }

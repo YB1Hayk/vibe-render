@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 
 const NAV_BASE = [
   { to: '/', key: 'nav.home' },
+  { to: '/admin', key: 'nav.admin' },
   { to: '/profile', key: 'nav.profile' },
 ] as const;
 

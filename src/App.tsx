@@ -14,6 +14,7 @@ import { Designers } from './pages/Designers';
 import { Operators } from './pages/Operators';
 import { Profile } from './pages/Profile';
 import { JobDetail } from './pages/JobDetail';
+import { Admin } from './pages/Admin';
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ export function App() {
                   <Route path="/operators" element={<ProtectedRoute><Operators /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                   <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
+                  <Route path="/admin" element={<Admin />} />
                   <Route path="*" element={<Home />} />
                 </Routes>
               </main>
