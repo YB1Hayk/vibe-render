@@ -9,17 +9,35 @@ import {
   Lock,
   ChevronRight,
   DollarSign,
+  ExternalLink,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
+import { useWriteContract, useChainId, useAccount } from 'wagmi';
+import { waitForTransactionReceipt } from '@wagmi/core';
+import { parseEther } from 'viem';
 import { GlassCard } from '../components/GlassCard';
 import { usdt } from '../lib/pricing';
 import { useAuth } from '../context/AuthContext';
 import { useCreateJob, useMyJobs } from '../hooks/useJobs';
 import { uploadArchive } from '../hooks/useJobFiles';
+import { supabase } from '../lib/supabase';
+import { wagmiConfig } from '../web3/wagmi';
+import {
+  RENDER_ESCROW_ABI,
+  RENDER_ESCROW_ADDRESS,
+  isContractDeployed,
+  getExplorerTxUrl,
+  getExplorerName,
+} from '../config/contracts';
 import type { JobStatus } from '../types/database';
 
 const ACCEPTED_EXT = ['.blend', '.max', '.c4d', '.zip'];
 const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
-const PROTOCOL_FEE_RATE = 0.03; // 3% комиссия платформы
+const PROTOCOL_FEE_RATE = 0.03;
+
+// Symbolic ETH amount locked on testnet (represents the USDT budget)
+const TESTNET_ESCROW_ETH = '0.001';
 
 const STATUS_LABELS: Record<JobStatus, string> = {
   open: '🟢',
@@ -28,6 +46,13 @@ const STATUS_LABELS: Record<JobStatus, string> = {
   review: '🟡',
   completed: '⚪',
 };
+
+type EscrowStep =
+  | 'idle'
+  | 'uploading'     // uploading file to Supabase Storage
+  | 'wallet'        // waiting for user to confirm tx in wallet
+  | 'confirming'    // tx submitted, waiting for block confirmation
+  | 'done';         // tx confirmed
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -41,10 +66,22 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
+const STEP_LABEL: Record<EscrowStep, string> = {
+  idle:        '',
+  uploading:   'Загрузка файла…',
+  wallet:      'Подтвердите в кошельке…',
+  confirming:  'Транзакция отправлена…',
+  done:        'Готово',
+};
+
 export function Designers() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const chainId = useChainId();
+  const { isConnected } = useAccount();
+  const { writeContractAsync } = useWriteContract();
 
   const createJob = useCreateJob();
   const { data: myJobs } = useMyJobs(user?.id);
@@ -55,13 +92,17 @@ export function Designers() {
   const [frameStart, setFrameStart] = useState(1);
   const [frameEnd, setFrameEnd] = useState(30);
   const [budgetInput, setBudgetInput] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [step, setStep] = useState<EscrowStep>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
   const frames = Math.max(0, frameEnd - frameStart + 1);
   const budget = Math.max(0, parseFloat(budgetInput) || 0);
   const protocolFee = budget * PROTOCOL_FEE_RATE;
   const total = budget + protocolFee;
+
+  const contractReady = isContractDeployed(chainId);
+  const contractAddress = RENDER_ESCROW_ADDRESS[chainId];
 
   const onDrop = useCallback(
     (accepted: File[], rejected: FileRejection[]) => {
@@ -93,10 +134,12 @@ export function Designers() {
 
   const handleLockEscrow = async () => {
     if (!file || frames <= 0 || budget <= 0 || !user) return;
-    setUploading(true);
     setSubmitError(null);
+    setTxHash(null);
+
     try {
-      // 1. Создаём задание в БД
+      // ── 1. Create job record in DB ──────────────────────────────────────
+      setStep('uploading');
       const jobData = await createJob.mutateAsync({
         title: file.name.replace(/\.[^.]+$/, ''),
         resolution,
@@ -105,22 +148,53 @@ export function Designers() {
         archive_path: 'pending',
         designer_id: user.id,
       });
-      // 2. Загружаем архив в Storage
+
+      // ── 2. Upload archive to Storage ────────────────────────────────────
       const archivePath = await uploadArchive(jobData.id, file);
-      // 3. Обновляем archive_path
-      const { supabase } = await import('../lib/supabase');
-      await supabase.from('jobs').update({ archive_path: archivePath }).eq('id', jobData.id);
-      // 4. Переходим на страницу задания
-      navigate(`/jobs/${jobData.id}`);
+      await supabase
+        .from('jobs')
+        .update({ archive_path: archivePath })
+        .eq('id', jobData.id);
+
+      // ── 3. On-chain escrow (if contract is deployed on current network) ─
+      if (contractReady && contractAddress && isConnected) {
+        // 3a. Ask wallet to sign the createJob() call
+        setStep('wallet');
+        const hash = await writeContractAsync({
+          address: contractAddress,
+          abi: RENDER_ESCROW_ABI,
+          functionName: 'createJob',
+          value: parseEther(TESTNET_ESCROW_ETH), // symbolic testnet amount
+        });
+
+        // 3b. Wait for 1 block confirmation
+        setStep('confirming');
+        setTxHash(hash);
+        await waitForTransactionReceipt(wagmiConfig, { hash, confirmations: 1 });
+
+        // 3c. Persist txHash in Supabase
+        await supabase
+          .from('jobs')
+          .update({ tx_hash: hash })
+          .eq('id', jobData.id);
+
+        setStep('done');
+
+        // Auto-navigate after showing success toast
+        setTimeout(() => navigate(`/jobs/${jobData.id}`), 2500);
+      } else {
+        // Contract not yet deployed on this network — proceed without on-chain tx
+        setStep('done');
+        setTimeout(() => navigate(`/jobs/${jobData.id}`), 800);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setSubmitError(msg);
-    } finally {
-      setUploading(false);
+      setStep('idle');
     }
   };
 
-  const isBusy = uploading || createJob.isPending;
+  const isBusy = step !== 'idle' && step !== 'done';
   const RESOLUTIONS = ['1080p', '4K', '8K'] as const;
 
   return (
@@ -131,7 +205,7 @@ export function Designers() {
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        {/* ЛЕВО — загрузка + настройки */}
+        {/* LEFT — dropzone + settings */}
         <div className="flex flex-col gap-6">
           <div
             {...getRootProps()}
@@ -214,11 +288,25 @@ export function Designers() {
           </GlassCard>
         </div>
 
-        {/* ПРАВО — бюджет + кнопка */}
+        {/* RIGHT — budget + escrow */}
         <GlassCard className="flex h-fit flex-col gap-4 p-6">
           <h2 className="font-display text-lg font-semibold">Бюджет проекта</h2>
 
-          {/* Ввод бюджета */}
+          {/* Network badge */}
+          {isConnected && (
+            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${
+              contractReady
+                ? 'bg-success/10 text-success border border-success/20'
+                : 'bg-accent/10 text-accent-2 border border-accent/20'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${contractReady ? 'bg-success' : 'bg-accent-2'}`} />
+              {contractReady
+                ? `Эскроу активен · ${getExplorerName(chainId)}`
+                : 'Контракт скоро: переключитесь на Base Sepolia'}
+            </div>
+          )}
+
+          {/* Budget input */}
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-muted">Сколько вы готовы заплатить (USDT)</span>
             <div className="relative">
@@ -235,7 +323,7 @@ export function Designers() {
             </div>
           </label>
 
-          {/* Разбивка */}
+          {/* Breakdown */}
           {budget > 0 && (
             <dl className="flex flex-col gap-3 text-sm">
               <div className="flex items-center justify-between gap-4">
@@ -246,6 +334,12 @@ export function Designers() {
                 <dt className="text-muted">Комиссия платформы (3%)</dt>
                 <dd className="nums">{usdt(protocolFee)}</dd>
               </div>
+              {contractReady && (
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Эскроу (testnet ETH)</dt>
+                  <dd className="nums text-accent-2">{TESTNET_ESCROW_ETH} ETH</dd>
+                </div>
+              )}
               <div className="my-1 h-px bg-border/10" />
               <div className="flex items-center justify-between gap-4">
                 <dt className="font-medium">Итого к оплате</dt>
@@ -254,24 +348,84 @@ export function Designers() {
             </dl>
           )}
 
+          {/* Lock button */}
           <button
             type="button"
             disabled={!file || frames <= 0 || budget <= 0 || isBusy}
             onClick={handleLockEscrow}
             className="flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Lock size={16} />
-            {isBusy ? t('auth.loading') : t('designers.lockEscrow')}
+            {isBusy ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                {STEP_LABEL[step]}
+              </>
+            ) : (
+              <>
+                <Lock size={16} />
+                {t('designers.lockEscrow')}
+              </>
+            )}
           </button>
+
+          {/* Step progress pills */}
+          {isBusy && (
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              {(['uploading', 'wallet', 'confirming'] as const).map((s, i) => (
+                <span key={s} className="flex items-center gap-1.5">
+                  {i > 0 && <span className="h-px w-3 bg-border/30" />}
+                  <span className={`rounded-full px-2 py-0.5 ${
+                    step === s
+                      ? 'bg-accent/20 text-accent-2'
+                      : ['uploading', 'wallet', 'confirming'].indexOf(step) > i
+                        ? 'bg-success/20 text-success'
+                        : 'bg-border/10 text-muted/50'
+                  }`}>
+                    {i + 1}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Success toast */}
+          {step === 'done' && txHash && (
+            <div className="flex flex-col gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-success">
+                <CheckCircle2 size={16} />
+                Эскроу заблокирован на блокчейне
+              </div>
+              <a
+                href={getExplorerTxUrl(chainId, txHash)}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-xs text-accent-2 underline-offset-2 hover:underline"
+              >
+                Открыть транзакцию в {getExplorerName(chainId)}
+                <ExternalLink size={12} />
+              </a>
+              <p className="text-xs text-muted font-mono truncate">{txHash}</p>
+            </div>
+          )}
+
+          {/* Success toast (no on-chain tx) */}
+          {step === 'done' && !txHash && (
+            <div className="flex items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-3 text-sm font-medium text-success">
+              <CheckCircle2 size={16} />
+              Проект создан — переходим к заданию…
+            </div>
+          )}
+
+          {/* Error */}
           {submitError && (
-            <p className="rounded-lg bg-danger/10 border border-danger/20 px-3 py-2 text-xs text-danger">
+            <p className="rounded-lg bg-danger/10 border border-danger/20 px-3 py-2 text-xs text-danger break-words">
               {submitError}
             </p>
           )}
         </GlassCard>
       </div>
 
-      {/* МОИ ЗАДАНИЯ */}
+      {/* MY JOBS */}
       {myJobs && myJobs.length > 0 && (
         <section className="flex flex-col gap-4">
           <h2 className="font-display text-xl font-semibold">{t('designers.myJobs')}</h2>
@@ -287,6 +441,11 @@ export function Designers() {
                     <p className="text-xs text-muted nums">
                       {job.resolution} · {job.frames} fr · {usdt(job.total_usdt)}
                     </p>
+                    {job.tx_hash && (
+                      <p className="text-[10px] text-accent-2 font-mono truncate">
+                        tx: {job.tx_hash.slice(0, 18)}…
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm">{STATUS_LABELS[job.status]}</span>

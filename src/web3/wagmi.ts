@@ -1,5 +1,5 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { base, arbitrum } from 'wagmi/chains';
+import { base, arbitrum, baseSepolia, arbitrumSepolia } from 'wagmi/chains';
 import { http } from 'viem';
 
 /**
@@ -13,10 +13,12 @@ import { http } from 'viem';
 export const wagmiConfig = getDefaultConfig({
   appName: 'VibeRender',
   projectId: import.meta.env.VITE_WC_PROJECT_ID ?? 'PLACEHOLDER_PROJECT_ID',
-  chains: [base, arbitrum],
+  chains: [baseSepolia, arbitrumSepolia, base, arbitrum],
   transports: {
-    [base.id]: http(),
-    [arbitrum.id]: http(),
+    [baseSepolia.id]:      http(),
+    [arbitrumSepolia.id]: http(),
+    [base.id]:             http(),
+    [arbitrum.id]:         http(),
   },
   ssr: false,
 });
