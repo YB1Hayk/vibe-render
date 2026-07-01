@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDropzone, type FileRejection } from 'react-dropzone';
 import { useNavigate, Link } from 'react-router-dom';
@@ -13,8 +13,7 @@ import {
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
-import { useWriteContract, useChainId, useAccount } from 'wagmi';
-import { waitForTransactionReceipt } from '@wagmi/core';
+import { useWriteContract, useChainId, useAccount, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther } from 'viem';
 import { GlassCard } from '../components/GlassCard';
 import { usdt } from '../lib/pricing';
@@ -22,7 +21,6 @@ import { useAuth } from '../context/AuthContext';
 import { useCreateJob, useMyJobs } from '../hooks/useJobs';
 import { uploadArchive } from '../hooks/useJobFiles';
 import { supabase } from '../lib/supabase';
-import { wagmiConfig } from '../web3/wagmi';
 import {
   RENDER_ESCROW_ABI,
   RENDER_ESCROW_ADDRESS,
@@ -35,8 +33,6 @@ import type { JobStatus } from '../types/database';
 const ACCEPTED_EXT = ['.blend', '.max', '.c4d', '.zip'];
 const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
 const PROTOCOL_FEE_RATE = 0.03;
-
-// Symbolic ETH amount locked on testnet (represents the USDT budget)
 const TESTNET_ESCROW_ETH = '0.001';
 
 const STATUS_LABELS: Record<JobStatus, string> = {
@@ -47,32 +43,24 @@ const STATUS_LABELS: Record<JobStatus, string> = {
   completed: '⚪',
 };
 
-type EscrowStep =
-  | 'idle'
-  | 'uploading'     // uploading file to Supabase Storage
-  | 'wallet'        // waiting for user to confirm tx in wallet
-  | 'confirming'    // tx submitted, waiting for block confirmation
-  | 'done';         // tx confirmed
+type EscrowStep = 'idle' | 'uploading' | 'wallet' | 'confirming' | 'done';
+
+const STEP_LABEL: Record<EscrowStep, string> = {
+  idle:       '',
+  uploading:  'Загрузка файла…',
+  wallet:     'Подтвердите в кошельке…',
+  confirming: 'Транзакция отправлена…',
+  done:       'Готово',
+};
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ['KB', 'MB', 'GB'];
   let value = bytes / 1024;
   let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i += 1;
-  }
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i += 1; }
   return `${value.toFixed(1)} ${units[i]}`;
 }
-
-const STEP_LABEL: Record<EscrowStep, string> = {
-  idle:        '',
-  uploading:   'Загрузка файла…',
-  wallet:      'Подтвердите в кошельке…',
-  confirming:  'Транзакция отправлена…',
-  done:        'Готово',
-};
 
 export function Designers() {
   const { t } = useTranslation();
@@ -96,7 +84,13 @@ export function Designers() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
+  // Pending on-chain tx — set after wallet signature, cleared after confirmation
+  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>(undefined);
+  // Track the job being created so we can clean up on error
+  const pendingJobId = useRef<string | null>(null);
+
   const frames = Math.max(0, frameEnd - frameStart + 1);
+  // Clamp budget to >= 0 so negative inputs are ignored
   const budget = Math.max(0, parseFloat(budgetInput) || 0);
   const protocolFee = budget * PROTOCOL_FEE_RATE;
   const total = budget + protocolFee;
@@ -104,14 +98,49 @@ export function Designers() {
   const contractReady = isContractDeployed(chainId);
   const contractAddress = RENDER_ESCROW_ADDRESS[chainId];
 
+  // ── Wait for on-chain confirmation (wagmi hook, no @wagmi/core needed) ──────
+  const { isSuccess: txConfirmed, isError: txReverted } = useWaitForTransactionReceipt({
+    hash: pendingHash,
+    confirmations: 1,
+    query: { enabled: !!pendingHash },
+  });
+
+  // Handle confirmed tx: persist txHash → show toast → navigate
+  useEffect(() => {
+    if (!txConfirmed && !txReverted) return;
+    if (!pendingHash) return;
+
+    const hash = pendingHash;
+    const jobId = pendingJobId.current;
+
+    setPendingHash(undefined);
+
+    if (txReverted || !jobId) {
+      setSubmitError('Транзакция отклонена сетью. Попробуйте ещё раз.');
+      // Orphan cleanup: delete the DB record since escrow didn't lock
+      if (jobId) {
+        supabase.from('jobs').delete().eq('id', jobId).then();
+        pendingJobId.current = null;
+      }
+      setStep('idle');
+      return;
+    }
+
+    // Success path
+    supabase.from('jobs').update({ tx_hash: hash }).eq('id', jobId).then(() => {
+      setTxHash(hash);
+      setStep('done');
+      pendingJobId.current = null;
+      setTimeout(() => navigate(`/jobs/${jobId}`), 2500);
+    });
+  }, [txConfirmed, txReverted, pendingHash, navigate]);
+
   const onDrop = useCallback(
     (accepted: File[], rejected: FileRejection[]) => {
       setFileError(null);
       if (rejected.length > 0) {
         const tooBig = rejected[0].errors.some((e) => e.code === 'file-too-large');
-        setFileError(
-          tooBig ? t('designers.dropzone.errorSize') : t('designers.dropzone.errorFormat'),
-        );
+        setFileError(tooBig ? t('designers.dropzone.errorSize') : t('designers.dropzone.errorFormat'));
         setFile(null);
         return;
       }
@@ -138,7 +167,7 @@ export function Designers() {
     setTxHash(null);
 
     try {
-      // ── 1. Create job record in DB ──────────────────────────────────────
+      // ── 1. Create DB record ────────────────────────────────────────────────
       setStep('uploading');
       const jobData = await createJob.mutateAsync({
         title: file.name.replace(/\.[^.]+$/, ''),
@@ -148,48 +177,51 @@ export function Designers() {
         archive_path: 'pending',
         designer_id: user.id,
       });
+      // Track for cleanup if tx fails
+      pendingJobId.current = jobData.id;
 
-      // ── 2. Upload archive to Storage ────────────────────────────────────
+      // ── 2. Upload archive ─────────────────────────────────────────────────
       const archivePath = await uploadArchive(jobData.id, file);
-      await supabase
-        .from('jobs')
-        .update({ archive_path: archivePath })
-        .eq('id', jobData.id);
+      await supabase.from('jobs').update({ archive_path: archivePath }).eq('id', jobData.id);
 
-      // ── 3. On-chain escrow (if contract is deployed on current network) ─
+      // ── 3. On-chain escrow ────────────────────────────────────────────────
       if (contractReady && contractAddress && isConnected) {
-        // 3a. Ask wallet to sign the createJob() call
         setStep('wallet');
         const hash = await writeContractAsync({
           address: contractAddress,
           abi: RENDER_ESCROW_ABI,
           functionName: 'createJob',
-          value: parseEther(TESTNET_ESCROW_ETH), // symbolic testnet amount
+          value: parseEther(TESTNET_ESCROW_ETH),
         });
-
-        // 3b. Wait for 1 block confirmation
+        // Hand off to useWaitForTransactionReceipt via state
+        // (useEffect above handles confirmation → db update → navigate)
         setStep('confirming');
-        setTxHash(hash);
-        await waitForTransactionReceipt(wagmiConfig, { hash, confirmations: 1 });
-
-        // 3c. Persist txHash in Supabase
-        await supabase
-          .from('jobs')
-          .update({ tx_hash: hash })
-          .eq('id', jobData.id);
-
-        setStep('done');
-
-        // Auto-navigate after showing success toast
-        setTimeout(() => navigate(`/jobs/${jobData.id}`), 2500);
+        setPendingHash(hash);
+        // Do NOT navigate here — useEffect handles it after confirmation
       } else {
-        // Contract not yet deployed on this network — proceed without on-chain tx
+        // Contract not yet deployed on this network → off-chain only
         setStep('done');
         setTimeout(() => navigate(`/jobs/${jobData.id}`), 800);
+        pendingJobId.current = null;
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setSubmitError(msg);
+
+      // User rejected the MetaMask popup → clean up and show nothing scary
+      const isRejection = /user rejected|user denied|rejected the request/i.test(msg);
+
+      // Orphan cleanup: delete the job record so DB stays consistent
+      if (pendingJobId.current) {
+        await supabase.from('jobs').delete().eq('id', pendingJobId.current);
+        pendingJobId.current = null;
+      }
+
+      if (isRejection) {
+        // Silent: just reset the form so user can try again
+        setSubmitError('Транзакция отменена. Нажмите кнопку ещё раз, когда будете готовы.');
+      } else {
+        setSubmitError(msg);
+      }
       setStep('idle');
     }
   };
@@ -210,9 +242,7 @@ export function Designers() {
           <div
             {...getRootProps()}
             className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
-              isDragActive
-                ? 'border-accent bg-accent/10'
-                : 'border-border/15 hover:border-accent/40'
+              isDragActive ? 'border-accent bg-accent/10' : 'border-border/15 hover:border-accent/40'
             }`}
           >
             <input {...getInputProps()} />
@@ -238,11 +268,8 @@ export function Designers() {
             </p>
           )}
 
-          {/* Render Settings */}
           <GlassCard className="flex flex-col gap-5 p-6">
-            <h2 className="font-display text-lg font-semibold">
-              {t('designers.settings.title')}
-            </h2>
+            <h2 className="font-display text-lg font-semibold">{t('designers.settings.title')}</h2>
             <div className="flex flex-col gap-2">
               <span className="text-sm text-muted">{t('designers.settings.resolution')}</span>
               <div className="flex flex-wrap gap-2">
@@ -276,9 +303,7 @@ export function Designers() {
                   type="number"
                   min={frameStart}
                   value={frameEnd}
-                  onChange={(e) =>
-                    setFrameEnd(Math.max(frameStart, Number(e.target.value) || frameStart))
-                  }
+                  onChange={(e) => setFrameEnd(Math.max(frameStart, Number(e.target.value) || frameStart))}
                   className="w-24 rounded-lg glass px-3 py-2 text-sm nums"
                   aria-label="frame end"
                 />
@@ -302,11 +327,10 @@ export function Designers() {
               <span className={`h-1.5 w-1.5 rounded-full ${contractReady ? 'bg-success' : 'bg-accent-2'}`} />
               {contractReady
                 ? `Эскроу активен · ${getExplorerName(chainId)}`
-                : 'Контракт скоро: переключитесь на Base Sepolia'}
+                : 'Переключитесь на Base Sepolia для on-chain эскроу'}
             </div>
           )}
 
-          {/* Budget input */}
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-muted">Сколько вы готовы заплатить (USDT)</span>
             <div className="relative">
@@ -323,7 +347,6 @@ export function Designers() {
             </div>
           </label>
 
-          {/* Breakdown */}
           {budget > 0 && (
             <dl className="flex flex-col gap-3 text-sm">
               <div className="flex items-center justify-between gap-4">
@@ -348,7 +371,6 @@ export function Designers() {
             </dl>
           )}
 
-          {/* Lock button */}
           <button
             type="button"
             disabled={!file || frames <= 0 || budget <= 0 || isBusy}
@@ -368,32 +390,36 @@ export function Designers() {
             )}
           </button>
 
-          {/* Step progress pills */}
+          {/* Step progress */}
           {isBusy && (
             <div className="flex items-center gap-1.5 text-xs text-muted">
-              {(['uploading', 'wallet', 'confirming'] as const).map((s, i) => (
-                <span key={s} className="flex items-center gap-1.5">
-                  {i > 0 && <span className="h-px w-3 bg-border/30" />}
-                  <span className={`rounded-full px-2 py-0.5 ${
-                    step === s
-                      ? 'bg-accent/20 text-accent-2'
-                      : ['uploading', 'wallet', 'confirming'].indexOf(step) > i
-                        ? 'bg-success/20 text-success'
-                        : 'bg-border/10 text-muted/50'
-                  }`}>
-                    {i + 1}
+              {(['uploading', 'wallet', 'confirming'] as const).map((s, i) => {
+                const STEPS = ['uploading', 'wallet', 'confirming'];
+                const currentIdx = STEPS.indexOf(step);
+                const isActive = step === s;
+                const isDone = currentIdx > i;
+                return (
+                  <span key={s} className="flex items-center gap-1.5">
+                    {i > 0 && <span className="h-px w-3 bg-border/30" />}
+                    <span className={`rounded-full px-2 py-0.5 ${
+                      isActive ? 'bg-accent/20 text-accent-2'
+                      : isDone  ? 'bg-success/20 text-success'
+                      : 'bg-border/10 text-muted/50'
+                    }`}>
+                      {i + 1}
+                    </span>
                   </span>
-                </span>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* Success toast */}
+          {/* Success toast — on-chain */}
           {step === 'done' && txHash && (
             <div className="flex flex-col gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-3">
               <div className="flex items-center gap-2 text-sm font-medium text-success">
                 <CheckCircle2 size={16} />
-                Эскроу заблокирован на блокчейне
+                Эскроу заблокирован on-chain
               </div>
               <a
                 href={getExplorerTxUrl(chainId, txHash)}
@@ -401,22 +427,21 @@ export function Designers() {
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs text-accent-2 underline-offset-2 hover:underline"
               >
-                Открыть транзакцию в {getExplorerName(chainId)}
+                Открыть в {getExplorerName(chainId)}
                 <ExternalLink size={12} />
               </a>
               <p className="text-xs text-muted font-mono truncate">{txHash}</p>
             </div>
           )}
 
-          {/* Success toast (no on-chain tx) */}
+          {/* Success toast — off-chain */}
           {step === 'done' && !txHash && (
             <div className="flex items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-3 text-sm font-medium text-success">
               <CheckCircle2 size={16} />
-              Проект создан — переходим к заданию…
+              Проект создан — переходим…
             </div>
           )}
 
-          {/* Error */}
           {submitError && (
             <p className="rounded-lg bg-danger/10 border border-danger/20 px-3 py-2 text-xs text-danger break-words">
               {submitError}
@@ -432,10 +457,7 @@ export function Designers() {
           <div className="flex flex-col gap-3">
             {myJobs.map((job) => (
               <GlassCard key={job.id} hover className="p-4">
-                <Link
-                  to={`/jobs/${job.id}`}
-                  className="flex items-center justify-between gap-4"
-                >
+                <Link to={`/jobs/${job.id}`} className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex flex-col gap-0.5">
                     <p className="font-medium truncate">{job.title}</p>
                     <p className="text-xs text-muted nums">
