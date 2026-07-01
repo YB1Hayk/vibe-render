@@ -15,92 +15,94 @@ type OAuthProvider = 'google' | 'discord' | 'azure';
 interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
-  loading: boolean;
+  signInWith: (provider: OAuthProvider) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithDiscord: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
-  signInWith: (provider: OAuthProvider) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  /** Мгновенно обновить профиль локально без DB-запроса */
+  updateProfile: (updates: Partial<Profile>) => void;
+  /** @deprecated use updateProfile */
   patchProfile: (updates: Partial<Profile>) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** Загружает профиль из таблицы profiles по user.id. Ретраит 1 раз через 600 мс
- *  на случай race condition между auth.users insert и триггером handle_new_user. */
 async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
   if (data) return data as Profile;
-  // Ретрай: триггер мог не успеть создать строку
-  await new Promise((r) => setTimeout(r, 600));
-  const { data: data2 } = await supabase.from('profiles').select('*').eq('id', userId).single();
+
+  // One retry after 700 ms in case the DB trigger is still running
+  await new Promise((r) => setTimeout(r, 700));
+  const { data: data2 } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
   return (data2 as Profile) ?? null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const refreshProfile = useCallback(async () => {
-    if (!user) return;
-    const p = await fetchProfile(user.id);
-    setProfile(p);
-  }, [user]);
-
-  const patchProfile = useCallback((updates: Partial<Profile>) => {
-    // Работает даже если profile === null (создаём минимальный объект)
-    setProfile((prev) => ({ ...(prev ?? ({} as Profile)), ...updates }));
-  }, []);
 
   useEffect(() => {
-    // Читаем текущую сессию при монтировании (нужно после OAuth redirect)
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id);
-        setProfile(p);
-      }
-      setLoading(false);
-    }).catch(() => {
-      // Supabase недоступен — всё равно убираем лоадер
-      setLoading(false);
-    });
+    let mounted = true;
 
-    // Фолбэк: если через 3 секунды loading ещё true — сбрасываем
-    const fallback = setTimeout(() => setLoading(false), 3000);
-
-    // Подписка на изменения сессии (login / logout / token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
+    // Hydrate from existing session on mount (page refresh / direct URL)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
       if (session?.user) {
-        const p = await fetchProfile(session.user.id);
-        // Не перезаписываем роль если она уже стоит локально (защита от race condition)
-        setProfile((current) => {
-          if (current?.role && !p?.role) return current;
-          return p;
+        setUser(session.user);
+        fetchProfile(session.user.id).then((p) => {
+          if (mounted) setProfile(p);
         });
-      } else {
-        setProfile(null);
       }
-      setLoading(false);
     });
 
-    return () => { subscription.unsubscribe(); clearTimeout(fallback); };
+    // Keep state in sync with sign-in / sign-out / token-refresh events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          setUser(session.user);
+          const p = await fetchProfile(session.user.id);
+          if (mounted) {
+            setProfile((current) => {
+              if (current?.role && !p?.role) return current;
+              return p;
+            });
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setProfile(null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setUser(session.user);
+        }
+      },
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signInWith = useCallback(async (provider: OAuthProvider) => {
     await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   }, []);
 
-  const signInWithGoogle = useCallback(() => signInWith('google'), [signInWith]);
-  const signInWithDiscord = useCallback(() => signInWith('discord'), [signInWith]);
-  const signInWithMicrosoft = useCallback(() => signInWith('azure'), [signInWith]);
+  const signInWithGoogle    = useCallback(() => signInWith('google'),  [signInWith]);
+  const signInWithDiscord   = useCallback(() => signInWith('discord'), [signInWith]);
+  const signInWithMicrosoft = useCallback(() => signInWith('azure'),   [signInWith]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -108,14 +110,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }, []);
 
+  const updateProfile = useCallback((updates: Partial<Profile>) => {
+    setProfile((prev) => ({ ...(prev ?? ({} as Profile)), ...updates }));
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) return;
+    const p = await fetchProfile(user.id);
+    setProfile(p);
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInWithDiscord, signInWithMicrosoft, signInWith, signOut, refreshProfile, patchProfile }}>
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      signInWith,
+      signInWithGoogle,
+      signInWithDiscord,
+      signInWithMicrosoft,
+      signOut,
+      updateProfile,
+      patchProfile: updateProfile,
+      refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-/** Хук для доступа к контексту авторизации. Бросает ошибку вне AuthProvider. */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');

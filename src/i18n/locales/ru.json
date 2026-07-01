@@ -3,6 +3,7 @@
     "home": "Главная",
     "designers": "Дизайнерам",
     "operators": "Рендерерам",
+    "admin": "Метрики",
     "profile": "Профиль"
   },
   "wallet": {
@@ -139,6 +140,8 @@
       "action": "Действие"
     },
     "status": { "available": "Доступна", "claimed": "Взята", "rendering": "Рендерится", "review": "На проверке", "completed": "Выполнено" },
+    "myJobs": "Мои задания",
+    "availableJobs": "Доступные задания",
     "claim": "Взять задачу",
     "download": "Скачать исходник",
     "jobs": [

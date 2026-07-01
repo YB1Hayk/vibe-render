@@ -3,6 +3,7 @@
     "home": "الرئيسية",
     "designers": "للمصممين",
     "operators": "للمُصيِّرين",
+    "admin": "إحصائيات",
     "profile": "الملف الشخصي"
   },
   "wallet": {
@@ -139,6 +140,8 @@
       "action": "إجراء"
     },
     "status": { "available": "متاحة", "claimed": "مستلَمة", "rendering": "قيد التصيير", "review": "قيد المراجعة", "completed": "مكتملة" },
+    "myJobs": "مهامي",
+    "availableJobs": "المهام المتاحة",
     "claim": "استلام المهمة",
     "download": "تنزيل المصدر",
     "jobs": [

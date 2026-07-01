@@ -1,37 +1,31 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import type { Role } from '../types/database';
 
 interface Props {
   children: ReactNode;
-  requiredRole?: Role;
 }
 
-export function ProtectedRoute({ children, requiredRole }: Props) {
-  const { user, profile, loading } = useAuth();
-  // Максимум 4 секунды на загрузку — потом считаем что не залогинен
-  const [timedOut, setTimedOut] = useState(false);
+/**
+ * Shows page content when the user is authenticated.
+ * While the session is still loading (user === null), shows a minimal
+ * "sign in" prompt inline — no redirect, no global spinner.
+ */
+export function ProtectedRoute({ children }: Props) {
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (!loading) return;
-    const t = setTimeout(() => setTimedOut(true), 4000);
-    return () => clearTimeout(t);
-  }, [loading]);
-
-  if (loading && !timedOut) {
+  if (!user) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <p className="text-muted text-sm">Для доступа к этой странице необходимо войти.</p>
+        <Link
+          to="/login"
+          className="rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+        >
+          Войти
+        </Link>
       </div>
     );
-  }
-
-  if (!user) return <Navigate to="/login" replace />;
-
-  if (requiredRole && profile?.role !== requiredRole) {
-    // Залогинен но не та роль — отправляем на главную
-    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
